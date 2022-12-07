@@ -1,9 +1,5 @@
-/**
- *Submitted for verification at testnet.snowtrace.io on 2022-07-01
-*/
-
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.14;
+pragma solidity ^0.8.14;
 
 library Address {
 
@@ -707,7 +703,7 @@ contract SYAC is ERC721, Ownable, Pausable {
     uint256 public constant MAX_SUPPLY = 5555;
     uint256 public constant MINT_PRICE = 0.05 ether;
     uint256 public constant MAX_MINT_PER_TX = 5;
-    uint256 constant public LEGENDARY_SUPPLY = 50;
+    uint256 constant public LEGENDARY_SUPPLY = 200;
     uint256 public totalLegendaryMinted;
     mapping(address=>uint) public totalWhiteListMinted;
     mapping(address=>uint256) public totalPublicMinted;

@@ -1,7 +1,3 @@
-/**
- *Submitted for verification at testnet.snowtrace.io on 2022-07-01
-*/
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.14;
 

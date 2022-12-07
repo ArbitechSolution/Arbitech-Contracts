@@ -1,9 +1,5 @@
-/**
- *Submitted for verification at testnet.snowtrace.io on 2022-07-13
-*/
-
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity ^0.8.14;
 
 library SafeMath {
     
@@ -156,7 +152,7 @@ contract ERC20Detailed  {
 
 
 
-contract AMC_COIN is ERC20, ERC20Detailed {
+contract AMC is ERC20, ERC20Detailed {
 
      using SafeMath for uint256;
      address public _owner;

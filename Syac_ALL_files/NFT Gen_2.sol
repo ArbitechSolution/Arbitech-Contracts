@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity ^0.8.14;
 
 interface OYAC_Staking {
     function lockedStaking(uint256 tokenId,address user) external;
@@ -114,6 +114,41 @@ abstract contract Ownable is Context {
         address oldOwner = _owner;
         _owner = newOwner;
         emit OwnershipTransferred(oldOwner, newOwner);
+    }
+}
+
+abstract contract Pausable is Context {
+
+    event Paused(address account);
+    event Unpaused(address account);
+    bool private _paused;
+
+    constructor() {
+        _paused = false;
+    }
+
+    function paused() public view virtual returns (bool) {
+        return _paused;
+    }
+
+    modifier whenNotPaused() {
+        require(!paused(), "Pausable: paused");
+        _;
+    }
+
+    modifier whenPaused() {
+        require(paused(), "Pausable: not paused");
+        _;
+    }
+
+    function _pause() internal virtual whenNotPaused {
+        _paused = true;
+        emit Paused(_msgSender());
+    }
+
+    function _unpause() internal virtual whenPaused {
+        _paused = false;
+        emit Unpaused(_msgSender());
     }
 }
 abstract contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
@@ -562,58 +597,33 @@ library SafeMath {
 
 
 
-contract Dutuch__Auction is Ownable, ERC721Enumerable{
+contract Dutuch_Auction is Ownable, Pausable, ERC721Enumerable{
 
     IERC20 public Token;
     OYAC_Staking public OYAC;
+
     using Strings for uint256;
     using SafeMath for uint256;
 
-    /////////////////////////       VARIABLES       ///////////////////////
-        uint256 public startAT;
-        uint256 public startingPrice;
-        uint256 public discountRate ;
-        uint256 public finalTime;
-        bool public auctionStarted = false;
-        uint256 Price_decrementTime = 30 seconds;
-        uint256 Dutuch_Max_supply = 1000;
-        uint256 public constant MAX_SUPPLY = 10000;
-        string public prefixURI="ipfs://QmaHyo79nAEvh991GxiM4tCSkPZcUUqFPdUZHDFMrpLLsa/";
-        bool public lock = false;
-        uint256 public constant MAX_PRE_SUPPLY = 1000;
-        bool public preSaleStarted = true;
-        uint256 public  PRE_PRICE = 0.05 ether;
-        uint256 public PRE_LIMIT = 3;
-        uint256 public PUBLIC_PRICE = 0.08 ether   ;
-        uint256 public PUBLIC_LIMIT = 7;
-        bool public saleStarted = true;
-    /////////////////////////       MAPPING       /////////////////////////
+    
+    uint256 public constant MAX_SUPPLY = 10000;
+    mapping(uint256 => string) public tokenURIs;
+    string public prefixURI="ipfs://QmaHyo79nAEvh991GxiM4tCSkPZcUUqFPdUZHDFMrpLLsa/";
+    bool public lock = false;
 
-        mapping(address=>uint) public totalDutuchMinted;
-        mapping(uint256 => string) public tokenURIs;
-        mapping(address => bool) public isWhitelisted;
-        mapping(address=>uint) public totalWhiteListMinted;
-        mapping(address=>uint256) public totalPublicMinted;
-    ////////////////////       STRUCTURE AND ARAY        //////////////////
-
-    struct mintedData
-    {
+    struct mintedData {
        address mintedAddress;
        uint256 amount;
     }
     mintedData[] public minteddata;
-    //////////////////////////////////////////////////////////////////////
-
-    constructor(IERC20 AMC_address)
-    ERC721("DA", "NFT") {
-    Token = AMC_address ;
+    
+    constructor(IERC20 AMC_address) ERC721("DA", "NFT") {
+        Token = AMC_address ;
     }
 
-    /* 
-    *In this function only owner can mint without any gas fee 
-    */
-    function mintOwner(uint256 _count, address _account) external onlyOwner
-    {
+    ////////////////////////   OWNER MINTING FUNCTION  //////////////////////////
+
+    function mintOwner(uint256 _count, address _account) external onlyOwner {
         require(totalSupply() + _count <= MAX_SUPPLY, "MAX_SUPPLY_REACHED");
         for (uint256 i = 1; i <= _count; i++) {
             _safeMint(_account,(totalSupply() + i));
@@ -621,17 +631,23 @@ contract Dutuch__Auction is Ownable, ERC721Enumerable{
             addToMintData(_count); 
     }
 
-    ///////////////////        START AUCTION     ///////////////////////
-    /*
-    * this is onlyOwner functions in wich @owner will start auction
-    * @owner will set starting price and decremented price and time 
-    * Price will decrease after time that will set by @owner)
-    * Also owner will set end time of Auction
-    */
+    ////////////////////////////  1ST NFT PRE-SALE /////////////////////////////
+    ////////////////////////////   DUTUCH AUCTION  /////////////////////////////
+
+        ///////////// Dutuch Variables ///////////////
+        uint256 public startAT;
+        uint256 public startingPrice;
+        uint256 public discountRate ;
+        uint256 public finalTime;
+        bool public auctionStarted = false;
+        uint256 Price_decrementTime = 30 seconds;
+        uint256 Dutuch_Max_supply = 1000;
+        mapping(address=>uint) public totalDutuchMinted;
+        ///////////// ================ ///////////////
+
     function StartAuction(
         uint256 _startP, uint256 _discP, uint256 _Ftime,
-        OYAC_Staking _stakingAddress) public onlyOwner
-    {
+    OYAC_Staking _stakingAddress) public onlyOwner {
         startingPrice = _startP;
         discountRate = _discP;
         startAT = block.timestamp;
@@ -639,14 +655,8 @@ contract Dutuch__Auction is Ownable, ERC721Enumerable{
         auctionStarted = true ; 
         OYAC=_stakingAddress;
     }
-    /*
-    * getPrice function will show the current price of minting (if the Auction is start) after decrement.
-    *  @_count Argument means Number of NFT's.
-    * this function will show the sum price of NFT that that user will put in function argument.
-    * @REQUIRE condition will revert an error if the auction has not start or the auction ended.
-    */
-    function getPrice(uint256 _count) public view returns (uint256)
-    {
+
+    function getPrice(uint256 _count) public view returns (uint256) {
         
         require(
         auctionStarted == true
@@ -660,14 +670,10 @@ contract Dutuch__Auction is Ownable, ERC721Enumerable{
         uint256 discount = discountRate.mul(timeElapsed);
         uint256 Price = startingPrice.sub(discount);
         return Price.mul(_count);
+
     }
-    /*
-    * while @user will mint NFT through Dutuch_Mint function,
-    * NFT will transferd to locked staking fucntion of OYAC contract.
-    * before minting 2 require conditions will be checked if the Auction is started and dutch supply limit not reached.
-    */
-    function Dutuch_Mint(uint256 _count) public
-    {
+    
+    function Dutuch_Mint(uint256 _count) public {
         address user = msg.sender;
         require(
         block.timestamp <= startAT + finalTime
@@ -685,40 +691,27 @@ contract Dutuch__Auction is Ownable, ERC721Enumerable{
         totalDutuchMinted[msg.sender] += _count;
         addToMintData(_count);
     }
-    /*
-    *This is only owner function and will be used to Stop Auction.
-    */
-    function stop_Auction(bool start_stop, uint256 type_) external onlyOwner
-    {   
-        if(type_ == 1){
-            auctionStarted = start_stop;
-            saleStarted = false;
-            preSaleStarted = false ; 
-        }
-        if (type_ == 2){
-            preSaleStarted= start_stop;
-            auctionStarted = false;
-            saleStarted = false;
-        }
-        if (type_ == 3){
-            saleStarted= start_stop;
-            auctionStarted = false;
-            preSaleStarted = false ; 
-        }
+
+    function stop_Auction(bool _stop) external onlyOwner {
+        require(auctionStarted != _stop, "AUCTION ALREADY SET TO STOPPED");
+        auctionStarted = _stop;
     }
-    /*
-    * Through this function only those users can mint NFT that are added in white list by the owner.
-    * require will check some conditions (
-    *    1 _ Presale Started,
-    *    2 _ Supply did not reached the limit.
-    *    3 _ address added in white list by the admin
-    *    4 _ address minting limit not reacehd )
-    * 
-    */
+
+
+    ////////////////////////////   =================  /////////////////////////////
+    ////////////////////////////   2ND NFT PRE-SALE   /////////////////////////////
+   
+    uint256 public constant MAX_PRE_SUPPLY = 1000;
+    bool public preSaleStarted = false;
+    uint256 public  PRE_PRICE = 0.05 ether;
+    uint256 public PRE_LIMIT = 3;
+    mapping(address => bool) public isWhitelisted;
+    mapping(address=>uint) public totalWhiteListMinted;
+
     function mintWhitelist(
-    uint256 _count)
-    external
-    payable
+        uint256 _count)
+        external
+        payable
     {
         require(preSaleStarted, " MINT_NOT_STARTED ");
         require(totalSupply() + _count <= MAX_PRE_SUPPLY, " MAX_SUPPLY_REACHED ");
@@ -729,15 +722,19 @@ contract Dutuch__Auction is Ownable, ERC721Enumerable{
             _safeMint(msg.sender,(totalSupply() + 1));
         }
         totalWhiteListMinted[msg.sender]+=_count;
-        addToMintData(_count);   
+        addToMintData(_count);
+        
     }
-    /*
-    * This is Public Minting function
-    * anyone can mint NFT by this function if the sale started.
-    * user need to pay  0.08 ether for each NFT    
-    */
-    function mint(uint256 _count) public payable
-    {
+
+    ////////////////////////////   =================  /////////////////////////////
+    ////////////////////////////   3RD NFT PRE-SALE   /////////////////////////////
+
+    uint256 public PUBLIC_PRICE = 0.08 ether ;
+    uint256 public PUBLIC_LIMIT = 7;
+    bool public saleStarted = false;
+    mapping(address=>uint256) public totalPublicMinted;
+
+    function mint(uint256 _count) public payable {
         require(saleStarted, "MINT_NOT_STARTED");
         require(totalSupply() + _count <= MAX_SUPPLY, "MAX_SUPPLY_REACHED");
         require(msg.value >=(_count * PUBLIC_PRICE), "INVALID_Matic_SENT");
@@ -749,11 +746,10 @@ contract Dutuch__Auction is Ownable, ERC721Enumerable{
         totalPublicMinted[msg.sender]+=_count;
         addToMintData(_count); 
     }
-    /*
-    * this function will return the token_IDs that minted by the user.
-    */
-    function walletOfOwner(address _owner) public view returns (uint256[] memory)
-    {
+
+    ////////////////////////////   =================  /////////////////////////////
+
+    function walletOfOwner(address _owner) public view returns (uint256[] memory) {
     uint256 ownerTokenCount = balanceOf(_owner);
     uint256[] memory tokenIds = new uint256[](ownerTokenCount);
 
@@ -762,53 +758,44 @@ contract Dutuch__Auction is Ownable, ERC721Enumerable{
         }
         return tokenIds;
     }
-    /*
-    *owner will add array of addresses to add in whitelist.
-    */
-    function ADDWHITELIST(address[] memory _user) public onlyOwner
-    {
-        for(uint i; i < _user.length; i++){
-            isWhitelisted[_user[i]] = true;
-        }
-    }
-    /*
-    * Function used to withdraw all the balance from this contract.
-    */
+
+
+    
+
+    // * Admin Fuctions * //
+
     function withDraw () onlyOwner public
     {
         payable(msg.sender).transfer(address(this).balance);
     }
-    /*
-    * Function used to withdraw all the Token_balance from this contract.
-    */
-    function withDrawAMC() public onlyOwner
-    {
-        Token.transfer(owner(), Token.balanceOf(address(this)));
+    function setPreSaleStarted(bool _hasStarted) external onlyOwner {
+        require(preSaleStarted != _hasStarted, "SALE_STARTED_ALREADY_SET");
+        preSaleStarted = _hasStarted;
+    }
+    function withdraw(address payable _to) external onlyOwner {
+        require(_to != address(0), "WITHDRAW_ADDRESS_ZERO");
+        require(address(this).balance > 0, "EMPTY_BALANCE");
+        _to.transfer(address(this).balance);
+    }
+    function setMintingLimit(uint256 _mintingLimit)external onlyOwner{
+        PUBLIC_LIMIT=_mintingLimit;
     }
 
-    /*
-    *This function will show the URI against the token_ID
-    */
-    function tokenURI(uint256 tokenId) public view virtual override returns (string memory)
-    {
+    ////////////////    URI     //////////////////
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
         return prefixURI;
     }
-
-    function setPrefixURI(string calldata _uri) external onlyOwner
-    {
+    function setPrefixURI(string calldata _uri) external onlyOwner {
         require(!lock, "ALREADY_LOCKED");
         prefixURI = _uri;
     }
-    function lockBaseURI() external onlyOwner
-    {
+    function lockBaseURI() external onlyOwner {
         require(!lock, "ALREADY_LOCKED");
         lock = true;
     }
-
-
-    function addToMintData(uint256 _count) internal
-    {
+    ////////////////////////////////////////////
+    function addToMintData(uint256 _count) internal {
     (bool _isMinted, uint256 s) = isAlreadyMinted(msg.sender);
 
         if(_isMinted){
@@ -819,9 +806,26 @@ contract Dutuch__Auction is Ownable, ERC721Enumerable{
         }
     }
 
-    function totalMintedAddress()public view returns(uint256)
-    {
+    function totalMintedAddress()public view returns(uint256){
     return minteddata.length;
+    }
+    function pause() external onlyOwner {
+        require(!paused(), "ALREADY_PAUSED");
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        require(paused(), "ALREADY_UNPAUSED");
+        _unpause();
+    }
+
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) override internal virtual {
+        require(!paused(), "TRANSFER_PAUSED");
+        super._beforeTokenTransfer(from, to, tokenId);
     }
     function isAlreadyMinted(address _address)
         internal

@@ -13,8 +13,8 @@ interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
-interface GEN__1{
-    function isStaked(address user_) external pure returns(bool a);
+interface gen_1{
+    function isStaked(address LockedUser) external view returns(bool);
 }
 
 library SafeMath {
@@ -144,65 +144,60 @@ contract SignVerify {
     }
 }
 
-contract OYAC_STAKING is Ownable, SignVerify{
+contract OYAC_STAKING is Ownable,SignVerify{
 
-    /////////////////////////       VARIABLES       ///////////////////////
+    ////////////    Variables   ////////////
+
     using SafeMath for uint256;
     IERC721 public NFT;
     IERC20 public Token;
-    GEN__1 public GEN_1;
+    gen_1 public GEN_1;
     address public DutuchAuction;
-    uint256 Time= 5 seconds;
-    uint256 LockingTime= 30 seconds;
-    uint256 maxNoOfDays = 3;
-    address public signer;
-    ////////////////////             STRUCTURE         //////////////////
+
+
+    ////////////    Locked - Structure   ////////////
+
     struct LockeduserInfo 
     {
         uint256 totlaWithdrawn;
         uint256 totalStaked;
+        uint256 lockedAvaialable;
     }
-    struct userInfo 
-    {
-        uint256 totlaWithdrawn;
-        uint256 totalStaked;
-    }
-    /////////////////////////       MAPPING       ///////////////////////////
-    mapping (address => LockeduserInfo ) public LockedUser;
-    mapping (address => mapping(uint256 => uint256)) public LockedstakingTime;
-    mapping (address => uint256[] ) public LockedTokenid;
-    mapping (address => uint256) public LockedtotalStakedNft;
-    mapping (uint256 => bool) public LockedalreadyAwarded;
-    mapping (address => mapping(uint256 => uint256)) public lockeddepositTime;
-    mapping (address => mapping(uint256 => uint256)) public stakingTime;
-    mapping (address => userInfo ) public User;
-    mapping (address => uint256[] ) public Tokenid;
-    mapping (address => uint256) public totalStakedNft;
-    mapping (uint256 => bool) public alreadyAwarded;
-    mapping (address => mapping(uint256 => uint256)) public depositTime;
-    mapping (bytes32 => bool) public usedHash;
-    ////////////////////        CONSTRUCTOR & MODIFIER      ////////////////////
-    constructor(IERC721 _NFTToken,IERC20 _token,GEN__1 Gen_1_Address)  
+
+    ////////////    Locked - Mapping   ////////////
+
+    mapping(address => LockeduserInfo ) public LockedUser;
+    mapping(address => mapping(uint256 => uint256)) public LockedstakingTime;
+    mapping(address => uint256[] ) public LockedTokenid;
+    mapping(address => uint256) public LockedtotalStakedNft;
+    mapping(uint256 => bool) public LockedalreadyAwarded;
+    mapping(address => mapping(uint256=>uint256)) public lockeddepositTime;
+
+    uint256 Time= 20 seconds;
+    uint256 LockingTime= 60 seconds;
+    uint256 maxNoOfDays = 3;
+
+     constructor(IERC721 _NFTToken,IERC20 _token,gen_1 _gen_1)  
     {
         NFT =_NFTToken;
         Token=_token;
-        GEN_1 = Gen_1_Address;
+        GEN_1 = _gen_1;
     }
 
-    modifier onlyDutch()
-    {
-        require(msg.sender == address(NFT)  , "Caller is not from Ductch Auction");
+    modifier onlyDuctch() {
+        require(msg.sender == DutuchAuction , "Caller is not from Ductch Auction");
         _;
     }
 
-    /*
-    * This function will be called in dutch mint function of OYAC contract.
-    * After dutch minting token_ID will transferd in contract via from this function .
-    * This function can be called only by the dutch auction contract users.
-    */
-    function lockedStaking(uint256 _Tokenid, address _user) external 
-    onlyDutch 
-    {
+    function add_Dutch_address(address _dutuch) public {
+        DutuchAuction = _dutuch;
+    }
+
+    ////////////    Locked Staking   ////////////
+
+     function lockedStaking(uint256 _Tokenid, address _user) external 
+     onlyDuctch 
+     {
 
        LockedTokenid[_user].push(_Tokenid);
        LockedstakingTime[_user][_Tokenid]=block.timestamp;
@@ -212,14 +207,13 @@ contract OYAC_STAKING is Ownable, SignVerify{
        LockedUser[_user].totalStaked+=1;
        LockedtotalStakedNft[_user]+=1;
     }
-    /*
-    *** This function will return the total time after completion of locking period.
-    */
-    function lockedCalcTime(uint256 Tid,address user_) internal view returns(uint256)
-    {
+
+    ////////////    Reward Check Function   ////////////
+
+     function lockedCalcTime(uint256 Tid) public view returns(uint256) {
         uint256 noOfDays;
-        if(LockedstakingTime[user_][Tid] > 0) {
-        noOfDays = (block.timestamp.sub(LockedstakingTime[user_][Tid])).div(Time);
+        if(LockedstakingTime[msg.sender][Tid] > 0) {
+        noOfDays = (block.timestamp.sub(LockedstakingTime[msg.sender][Tid])).div(Time);
         if (noOfDays > maxNoOfDays) {
             noOfDays = maxNoOfDays;
             }
@@ -229,11 +223,8 @@ contract OYAC_STAKING is Ownable, SignVerify{
         }
         return noOfDays;
     }
-    /*
-    * Contract will decide reward for each NFT. (15 or 10) / day
-    */
-    function lockedperNFTReward(address addrs) internal view returns(uint256)
-    {
+
+    function lockedperNFTReward(address addrs) public view returns(uint256) {
         bool check = GEN_1.isStaked(addrs);
         uint256 rewardPerNFT;
         if(check == true) {
@@ -244,74 +235,57 @@ contract OYAC_STAKING is Ownable, SignVerify{
             }
         return rewardPerNFT;
     }
-    /*
-    * This function will calculate the reward of each NFT.
-    * Frist will check if user staked in GEN_1 then he will get 15 tokens/day otherwise he will get 10 tokens/day.
-    */
-    function lockedSingleReward(uint256 Tid, address user_) public view returns(uint256 single_reward)
-    {
+
+    function lockedSingleReward(address Add, uint256 Tid) public view returns(uint256) {
+        uint256 single_reward;
         uint256 noOfDays;
-        uint256 rewardPerNFT = lockedperNFTReward(user_);
+        uint256 rewardPerNFT = lockedperNFTReward(Add);
         
-        for (uint256 i=0; i<LockedTokenid[user_].length; i++){
-            if(
-                LockedTokenid[user_][i] > 0) {
-                noOfDays = lockedCalcTime(Tid,user_);
+        for (uint256 i=0; i<LockedTokenid[Add].length; i++){
+            uint256 _index=findlocked(Tid);
+            if(LockedalreadyAwarded[LockedTokenid[msg.sender][_index]] != true &&LockedTokenid[Add][i] == Tid && LockedTokenid[Add][i] > 0) {
+                noOfDays = lockedCalcTime(Tid);
                 if (noOfDays == maxNoOfDays){
                     single_reward = (rewardPerNFT).mul(noOfDays);
                     }
-                else 
-                {
+                else if(noOfDays != maxNoOfDays) {
                     noOfDays = 0;
+                    single_reward = (rewardPerNFT).mul(noOfDays);
                 }
             }
         }
         return single_reward;
     }
-    /*
-    * This function will return total reward of the user against locked_staked NFTs.
-    */
-    function lockedtotalReward(address user_) public view returns(uint256)
-    {
+
+    function lockedtotalReward(address Add) public view returns(uint256){
         uint256 ttlReward;
-        for (uint256 i=0; i< LockedTokenid[user_].length; i++){
-            ttlReward += lockedSingleReward(LockedTokenid[user_][i],user_);
+        for (uint256 i=0; i< LockedTokenid[Add].length; i++){
+            ttlReward += lockedSingleReward(Add, LockedTokenid[Add][i]);
             }
         return ttlReward;
     }
-    /*
-    * This function will return the NFTs that have completed the locking period.
-    */
-    function getIDS(address user_) public view returns(uint256[] memory) {
-        uint256[] memory newids =  new uint256[] (LockeduserNFT_s(user_).length);
-        for (uint256 i=0; i< LockeduserNFT_s(user_).length; i++){
-            if(lockedCalcTime(LockedTokenid[user_][i], user_) > 0){
-                newids[i] = LockedTokenid[user_][i];
-            }
-        }
-        return newids;
-    }
-    /*
-    * This function is used to withdraw and unstake at the same time.
-    ***** (Only those NFTs that have completed their locking period can be unstaked.)
-    **
-    */
-    function locked_Withdraw_Unstake()  public {
-        
-        uint256 totalReward = lockedtotalReward(msg.sender);
+
+
+    ////////////    Withdraw-Reward   ////////////
+
+    function WithdrawLockedReward()  public {
+        uint256 totalReward = lockedtotalReward(msg.sender) + 
+        LockedUser[msg.sender].lockedAvaialable;
         require(totalReward > 0,"you don't have reward yet!");
         Token.withdrawStakingReward(msg.sender, totalReward);
-
         for(uint256 i=0; i < LockedTokenid[msg.sender].length;i++){
             uint256 _index=findlocked(LockedTokenid[msg.sender][i]);
             LockedalreadyAwarded[LockedTokenid[msg.sender][_index]]=true;
+            // if(lockedCalcTime(LockedTokenid[msg.sender][i])==maxNoOfDays){
+            //     LockedstakingTime[msg.sender][LockedTokenid[msg.sender][i]]=0;
+            // }
         }
+        LockedUser[msg.sender].lockedAvaialable = 0;
         LockedUser[msg.sender].totlaWithdrawn +=  totalReward;
-        unstakelocked(getIDS(msg.sender));
     }
-    /*
-    * This function will check if the ID is staked or not and return the number of locked FNTs
-    */
+
+    ////////////    Get index by Value   ////////////
+
     function findlocked(uint value) public view returns(uint) {
         uint i = 0;
         while (LockedTokenid[msg.sender][i] != value) {
@@ -319,38 +293,38 @@ contract OYAC_STAKING is Ownable, SignVerify{
         }
         return i;
     }
-    /*
-    * This function will use to unstake the NFTs in 
-    **** locked_Withdraw_Unstake()
-    */
-    function unstakelocked(uint256[] memory TokenIds) internal
+
+
+    ////////////    LockedUser have to pass tokenIdS to unstake   ////////////
+
+    function unstakelocked(uint256[] memory TokenIds)  external
     {
+   
         address nftContract = msg.sender;
         for(uint256 i=0; i<TokenIds.length; i++){
             uint256 _index=findlocked(TokenIds[i]);
-            require(lockedCalcTime(LockedTokenid[msg.sender][_index],msg.sender)==maxNoOfDays," TIME NOT REACHED YET ");
+            require(lockedCalcTime(LockedTokenid[msg.sender][_index])==maxNoOfDays," TIME NOT REACHED YET ");
             require(LockedTokenid[msg.sender][_index] == TokenIds[i] ," NFT WITH THIS LOCKED_TOKEN_ID NOT FOUND ");
+            LockedUser[msg.sender].lockedAvaialable += lockedSingleReward(msg.sender,TokenIds[i]);
             NFT.transferFrom(address(this),address(nftContract),TokenIds[i]);
             delete LockedTokenid[msg.sender][_index];
             LockedTokenid[msg.sender][_index]=LockedTokenid[msg.sender][LockedTokenid[msg.sender].length-1];
             LockedstakingTime[msg.sender][TokenIds[i]]=0;
-            LockedTokenid[msg.sender].pop();  
+            LockedTokenid[msg.sender].pop();
+            
         }
+
         LockedUser[msg.sender].totalStaked -= TokenIds.length;
         LockedtotalStakedNft[msg.sender]>0?LockedtotalStakedNft[msg.sender] -= TokenIds.length:LockedtotalStakedNft[msg.sender]=0;
-    } 
-    /*
-    * This function will return all the locked_staked NFTs.
-    */
-    function LockeduserNFT_s(address _staker)public view returns(uint256[] memory)
-    {
+    }  
+
+    ////////////    Return All staked Nft's   ////////////
+    
+    function LockeduserNFT_s(address _staker)public view returns(uint256[] memory) {
        return LockedTokenid[_staker];
     }
-    /*
-    * This will return a bool statment if the user is Staked or not.
-    */
-    function isLockedStaked(address _stakeHolder)public view returns(bool)
-    {
+
+    function isLockedStaked(address _stakeHolder)public view returns(bool){
         if(LockedtotalStakedNft[_stakeHolder]>0){
             return true;
             }else{
@@ -358,45 +332,53 @@ contract OYAC_STAKING is Ownable, SignVerify{
         }
     }
 
-
-    ///////////////////      ONLY-OWNER FUNCTIONS     ////////////////////////
-    /*
-    * Owner's withdraw function to get token back from the contract.
-    */
-    function WithdrawToken()public onlyOwner 
-    {
+    ////////////    Withdraw Token   ////////////    
+    function WithdrawToken()public onlyOwner {
     require(Token.transfer(msg.sender,Token.balanceOf(address(this))),"Token transfer Error!");
     }
 
-    function Add_Signer(address _signer) public onlyOwner
+
+
+
+    ////////////////////////////////    SSTAKING     /////////////////////////////////
+    struct userInfo 
     {
-        signer  = _signer;
+        uint256 totlaWithdrawn;
+        uint256 totalStaked;
+        uint256 availableToWithdraw;
     }
 
-    /*
-    - General function used to stake NFTs 
-    -- Pre_Sale
-    -- Public_Sale
-    */
+    mapping(address => mapping(uint256 => uint256)) public stakingTime;
+    mapping(address => userInfo ) public User;
+    mapping(address => uint256[] ) public Tokenid;
+    mapping(address=>uint256) public totalStakedNft;
+    mapping(uint256=>bool) public alreadyAwarded;
+    mapping(address=>mapping(uint256=>uint256)) public depositTime;
+
+
+    //              Signature               //
+    address public signer;
+    mapping (bytes32 => bool) public usedHash;
+    //////////////////////////////////////////
+
     function Stake(uint256[] memory tokenId) external 
-    {  require(tokenId.length>0, " PLZ select ID " );
+    {
        for(uint256 i=0;i<tokenId.length;i++){
-       require(NFT.ownerOf(tokenId[i]) == msg.sender,"NFT NOT FOUND");
-       NFT.transferFrom(msg.sender,address(this),tokenId[i]);
+    //    require(NFT.ownerOf(tokenId[i]) == msg.sender,"nft not found");
+    //    NFT.transferFrom(msg.sender,address(this),tokenId[i]);
        Tokenid[msg.sender].push(tokenId[i]);
        stakingTime[msg.sender][tokenId[i]]=block.timestamp;
        if(!alreadyAwarded[tokenId[i]]){
        depositTime[msg.sender][tokenId[i]]=block.timestamp;
+       
        }
        }
+       
        User[msg.sender].totalStaked+=tokenId.length;
        totalStakedNft[msg.sender]+=tokenId.length;
+
     }
-    /*
-    * This is general reward function in which user will get reward after staking NFT.
-    -- Signature
-    -- Nonce
-    */
+
     function WithdrawReward(uint256 _reward,uint256 _nonce, bytes memory signature)  public 
     {
        require(_reward > 0,"you don't have reward yet!");
@@ -409,10 +391,13 @@ contract OYAC_STAKING is Ownable, SignVerify{
             )
         );
         require(!usedHash[hash], "Invalid Hash");   
-        require(recoverSigner(hash, signature) == signer, "Signature Failed");
-        usedHash[hash] = true;
-        Token.withdrawStakingReward(msg.sender,_reward);
-        User[msg.sender].totlaWithdrawn +=  _reward;
+        require(recoverSigner(hash, signature) == signer, "Signature Failed");   
+        usedHash[hash] = true; 
+       Token.withdrawStakingReward(msg.sender,_reward);
+       User[msg.sender].totlaWithdrawn +=  _reward;
+    }
+    function Add_Signer(address _signer) public onlyOwner{
+        signer  = _signer;
     }
 
     function find(uint value) internal  view returns(uint) {
@@ -421,13 +406,12 @@ contract OYAC_STAKING is Ownable, SignVerify{
             i++;
         }
         return i;
-    }
-    /*
-    * This is general unstake function in which user will unstake his NFTs.
-    */
+     }
+
     function unstake(uint256[] memory _tokenId)  external 
     {
-        require(_tokenId.length>0, " PLZs Select ID " );
+        // User[msg.sender].availableToWithdraw+=rewardOfUser(msg.sender);
+        // by removing we are unable to capture reward of USER's id
         for(uint256 i=0;i<_tokenId.length;i++){
         uint256 _index=find(_tokenId[i]);
         require(Tokenid[msg.sender][_index] ==_tokenId[i] ,"NFT with this _tokenId not found");
@@ -439,11 +423,9 @@ contract OYAC_STAKING is Ownable, SignVerify{
         }
         User[msg.sender].totalStaked-=_tokenId.length;
         totalStakedNft[msg.sender]>0?totalStakedNft[msg.sender]-=_tokenId.length:totalStakedNft[msg.sender]=0;
+       
     }
 
-    /*
-    * This will return a bool statment if the user is stakeholder or not.
-    */
     function isStaked(address _stakeHolder)public view returns(bool){
             if(totalStakedNft[_stakeHolder]>0){
             return true;
@@ -457,6 +439,6 @@ contract OYAC_STAKING is Ownable, SignVerify{
 
 
     // Signer_Address: 0x7D3A326D974496111Bdd18f0c1bC60b3Be865862
-    // 0x0a2a308c5722B227B8eF8131Fc5b8448E6a8e665 gen_1
+
 
 }
