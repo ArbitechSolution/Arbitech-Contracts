@@ -1,0 +1,36 @@
+pragma solidity ^0.5.0;
+
+contract first{
+       int age=40;
+       int public age3=88;
+       int private age4=age3;
+       int public age1=41;
+       int private age2=42;
+
+    function viewinfo() public returns (int){
+        int a= getage4();
+        age3=a;
+        return age3;
+    } 
+    function viewinfo1(int b) public returns (int){
+        int a= b;
+        age3=a;
+        return age3;
+    } 
+    function getage() private returns (int){
+        return age;
+    }  
+    function getage1() public returns (int){
+        return age;
+    }       
+    function getage2() public view returns (int){
+        return age2;
+    } 
+    function getage3() public{
+        age1= 45;
+    } 
+    function getage4() private returns (int ){
+        age4= 66;
+        return age4;
+    } 
+}

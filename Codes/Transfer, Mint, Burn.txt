@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.13;
+contract ABCToken
+{
+    mapping(address => uint256) balances;
+
+    event Transfer(address indexed from,address indexed to, uint256 tak);
+
+    string public TokenName;
+    string public TokenSymbol;
+    uint256 public TotalSupply;
+    address admin;
+    constructor(string memory name,string memory symbol, uint256 supply){
+    TokenName= name;
+    TokenSymbol=symbol;
+    TotalSupply= supply;
+    balances[msg.sender]=TotalSupply;
+    admin=msg.sender;
+    }
+    modifier checkadmin()
+    {
+        require (msg.sender==admin);
+        _;
+    }
+    function transfer(address receiver , uint256 trantoken) public returns(bool)
+    {
+    require(trantoken<= balances[msg.sender]);
+    balances[msg.sender] -= trantoken;
+    balances[receiver] += trantoken;
+    emit Transfer(msg.sender,receiver,trantoken);
+    return true;
+    }
+    function balanceof(address Totalbal) public view returns (uint256)
+    {
+        return balances[Totalbal];
+    }
+    function mint (uint256 tokens) public checkadmin
+    {
+       TotalSupply += tokens;
+       balances[msg.sender] += tokens;
+    }
+     function burn (uint256 tokens) public checkadmin
+    {
+       require(tokens<=balances[msg.sender]);
+       TotalSupply -= tokens;
+       balances[msg.sender] -= tokens;
+    }
+}

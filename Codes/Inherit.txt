@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.13;
+interface IERC20{
+function transfer(address receiver , uint256 trantoken) external returns(bool);
+}
+
+
+contract Hello
+{
+    IERC20 public TOKEN;
+    uint public price;
+    constructor(IERC20 _TOKEN)
+    {
+    TOKEN=_TOKEN;
+    price = 10000000000000000;
+    }
+    event Transfer(address receiver, uint256  value);
+
+    function transfer(address receiver) public payable
+    {
+    uint256 a;
+    uint256 TotalToken;
+    a = msg.value/price;
+    TotalToken= a * 1 ether;
+    TOKEN.transfer(receiver, TotalToken);
+    emit Transfer(receiver, TotalToken);
+    } 
+}

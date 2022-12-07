@@ -1,0 +1,15 @@
+pragma solidity ^0.5.0;
+
+contract first{
+      
+      mapping (int => mapping (string => string)) stuedentinfo;
+
+      function getuserinfo(int Roll, string memory Name,string memory Dept) public
+      {
+          stuedentinfo[Roll][Name]=Dept;
+      }
+      function enterroll(int Roll, string memory Name) public view returns(string memory)
+      {
+         return stuedentinfo[Roll][Name];
+      }
+}

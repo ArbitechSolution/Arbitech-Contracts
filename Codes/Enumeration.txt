@@ -1,0 +1,10 @@
+pragma solidity ^0.5.0;
+
+contract first{
+       enum gander{male, female}
+       function show() public view returns(gander)
+       {
+           return gander.female;
+       }
+    
+}

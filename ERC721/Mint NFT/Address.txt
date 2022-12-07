@@ -1,0 +1,14 @@
+Address: https://testnet.bscscan.com/address/0x6c9a70bde3fcc2ad35b11538d37f9f7e6fc4b8f7
+
+Pinata:
+Step1;
+NFT inmage upload on Pinata :
+https://gateway.pinata.cloud/ipfs/QmcNCwX3GUc89iiqshZNikJW6p7BfheoUbDGvU9jJsQPu8/
+Step2:
+Create Jason by using JS code
+Change the addres in JS file
+Step3:
+Upload JSON file on Pinata
+https://gateway.pinata.cloud/ipfs/QmNY2nkfKRgt7z5NDDyVbaJuWhJZpYEfXzW7id9xU8wWo9/
+Step4:
+Change JS link into code

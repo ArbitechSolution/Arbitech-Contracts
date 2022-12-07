@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.13;
+interface StakeInter{
+    function transfer(address receiver , uint256 trantoken) external returns(bool);
+    function transferfrom(address owner, address recetoken,uint256 value) external returns(bool);
+}
+contract ERC_Staking{
+
+    event StakeEvent(uint256 amount, uint256 Time);
+    mapping( address=>stake) StakeUser;
+    uint256  a; 
+    uint256  RewardPerSecond;
+    uint256  TimeDiff;
+    uint256  Reward;
+    uint256 public TotalReward;
+    uint256  maxReward;
+
+    StakeInter public StakeInterface;
+    constructor(StakeInter _StakeInterface)
+    {
+    StakeInterface=_StakeInterface;
+    }
+    struct stake
+    { 
+        uint256 amount;
+        uint256 time;
+    }
+    function Stakes() public payable 
+    {
+      StakeUser[msg.sender] = stake(msg.value, block.timestamp);
+      emit StakeEvent(msg.value, block.timestamp);
+    }
+    function CheckRewards() public 
+    {
+        a=StakeUser[msg.sender].amount/100;
+        maxReward=a*360;
+        RewardPerSecond=maxReward/60;
+           if(block.timestamp > StakeUser[msg.sender].time + 60 seconds)
+           { 
+            TotalReward = StakeUser[msg.sender].amount+ maxReward;
+           }
+           else
+           {
+            TimeDiff= block.timestamp-StakeUser[msg.sender].time;
+            Reward = RewardPerSecond * TimeDiff; 
+            TotalReward = StakeUser[msg.sender].amount + Reward;
+           }
+    }
+    function UnStakes() public  
+    {
+        payable(msg.sender).transfer(StakeUser[msg.sender].amount);
+    }
+
+}

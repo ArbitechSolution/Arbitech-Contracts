@@ -1,0 +1,13 @@
+pragma solidity ^0.5.0;
+
+contract first{
+      
+      bytes b= new bytes(3);
+      function arryinfo() public returns (bytes memory, uint)
+      {
+        b.push("A");
+        b.push("B");
+        b.push("C");
+        return (b, b.length);
+      }
+}

@@ -1,0 +1,136 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.13;
+interface IERC20{
+    function transfer(address receiver , uint256 trantoken) external returns(bool);
+    function transferfrom(address owner, address recetoken,uint256 value) external returns(bool);
+}
+contract ERC_Staking{
+
+    event StakeEvent(uint256 amount, uint256 Time);
+
+    mapping( address=>uint256) TotalRewards;
+    mapping( address=>uint256) ReceivedReward;
+    // mapping( address=>uint256) Reward_calculate;
+
+    mapping( address=>bool) stakechecking;
+
+    uint256 MaxRewards;
+    uint256 PerRewards;
+    uint256 Deposite_Count;
+    mapping( address=>uint256) _Deposite_Count;
+
+    IERC20 public Token;
+    constructor(IERC20 _Token)
+    {
+    Token=_Token;
+    }
+
+    struct User_detail{
+        uint256 deposit_Amount;
+        uint256 totalReward;
+        uint256 pendingReward;
+        uint256 withdrawReward;
+        uint256 depositTime;
+        uint256 withdrawTime;
+    }
+    mapping(address => User_detail) public User_data;
+    mapping( address=> mapping( uint256 => uint256)) User_StakeAmount;
+    mapping( address=> mapping( uint256 => uint256)) User_StakeAmount1;
+    mapping( address=> mapping( uint256 => uint256)) User_StakeTime;
+    mapping( address=> uint256) Reward_calculate;
+
+    function Stakes(uint256 StakeAmount) public
+    {
+            Deposite_Count = _Deposite_Count[msg.sender];
+            User_data[msg.sender].deposit_Amount += StakeAmount;
+            Reward_calculate[msg.sender] = User_data[msg.sender].deposit_Amount/100;
+            User_data[msg.sender].totalReward = Reward_calculate[msg.sender]*360;
+            Token.transferfrom(msg.sender, address(this), StakeAmount);
+            User_data[msg.sender].depositTime = block.timestamp;
+
+            User_StakeAmount[msg.sender][Deposite_Count] = StakeAmount;
+            User_StakeAmount1[msg.sender][Deposite_Count] = 360 * (User_StakeAmount[msg.sender][Deposite_Count]/100);
+            User_StakeTime[msg.sender][Deposite_Count] = block.timestamp;
+
+            User_data[msg.sender].pendingReward = User_data[msg.sender].totalReward;
+
+            _Deposite_Count[msg.sender] = _Deposite_Count[msg.sender] + 1;
+
+            stakechecking[msg.sender]=true;
+            emit StakeEvent(StakeAmount, block.timestamp);
+    }
+    uint256 a;
+    function CheckRewards() public view returns (uint256)
+    {
+        uint256 RewardPerSecond;
+        uint256 RewardAfter_Delay;
+        
+        uint256 Time_Diff; 
+        uint b;
+        uint256 MaxReward;
+        MaxReward=0;
+        for(uint256 Rewards_Count=0; Rewards_Count < _Deposite_Count[msg.sender]; Rewards_Count++)
+        {
+            RewardPerSecond = User_StakeAmount1[msg.sender][Rewards_Count]/300;
+            RewardAfter_Delay = RewardPerSecond * 30;
+
+                if(block.timestamp >= User_StakeTime[msg.sender][Rewards_Count] + 5 minutes)
+                { 
+                 MaxReward +=  User_StakeAmount1[msg.sender][Rewards_Count];
+                }
+                else
+                {
+                Time_Diff = block.timestamp - User_StakeTime[msg.sender][Rewards_Count];
+                b = Time_Diff/30;
+                MaxReward += RewardAfter_Delay * b;
+                }
+        }
+        MaxReward= MaxReward - User_data[msg.sender].withdrawReward;
+
+        return MaxReward;
+    }
+    function WithDraw () public
+    {
+        TotalRewards[msg.sender] = CheckRewards();
+        Token.transfer(msg.sender, TotalRewards[msg.sender]);
+
+        if(ReceivedReward[msg.sender]!=TotalRewards[msg.sender])
+        { 
+            ReceivedReward[msg.sender] += TotalRewards[msg.sender]; 
+        }
+        else
+        { 
+            require (ReceivedReward[msg.sender]!=TotalRewards[msg.sender],"Reward Already transferred"); 
+        }
+
+        User_data[msg.sender].pendingReward = User_data[msg.sender].totalReward - ReceivedReward[msg.sender];
+        User_data[msg.sender].withdrawReward = ReceivedReward[msg.sender];
+        User_data[msg.sender].withdrawTime = block.timestamp;
+    
+    }
+    function UnStakes() public  
+    {
+        if(stakechecking[msg.sender]==true)
+        {
+        Token.transfer(msg.sender, User_data[msg.sender].deposit_Amount);
+        User_data[msg.sender].deposit_Amount=0;
+        User_data[msg.sender].totalReward=0;
+        User_data[msg.sender].pendingReward=0;
+        User_data[msg.sender].pendingReward=0;
+        User_data[msg.sender].withdrawReward=0;
+        User_data[msg.sender].depositTime=0;
+        _Deposite_Count[msg.sender]=0;
+            for(uint i=0;i<_Deposite_Count[msg.sender];i++)
+            {
+                User_StakeAmount1[msg.sender][i]=0;
+                User_StakeAmount1[msg.sender][i]=0;
+                stakechecking[msg.sender]=false;
+            }
+        }
+        else
+        {
+           require (stakechecking[msg.sender]!=false, "Alreday UnStake"); 
+        }
+    }
+
+}

@@ -1,0 +1,111 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.13;
+interface IERC20{
+    function transfer(address receiver , uint256 trantoken) external returns(bool);
+    function transferfrom(address owner, address recetoken,uint256 value) external returns(bool);
+}
+contract ERC_Staking{
+
+    event StakeEvent(uint256 amount, uint256 Time);
+    mapping( address=>stake) StakeUser;
+    mapping( address=>uint256) TotalRewards;
+    mapping( address=>uint256) TransferredReward;
+    mapping( address=>uint256) ReceivedReward;
+    mapping( address=>bool) stakechecking;
+    mapping (address=>stake) stakeinformation;
+
+    IERC20 public Token;
+    constructor(IERC20 _Token)
+    {
+    Token=_Token;
+    }
+
+    struct stake
+    { 
+        uint256 amount;
+        uint256 time;
+    }
+    struct WithdrawStake 
+    { 
+        uint256  RemainingReward;
+        uint256 Rewards;
+        uint256 WithdrawTime;
+    }
+    function Stakes(uint256 StakeAmount) public
+    {
+        if(stakechecking[msg.sender]==false)
+        { 
+            StakeUser[msg.sender] = stake(StakeAmount, block.timestamp);
+            // Token.BalanceAfterStaking(msg.sender,StakeAmount);
+            // Token.transfer(address(this), StakeAmount);
+            Token.transferfrom(msg.sender, address(this), StakeAmount);
+            stakechecking[msg.sender]=true;
+            TotalRewards[msg.sender]=0;
+            ReceivedReward[msg.sender]=0;
+            emit StakeEvent(StakeAmount, block.timestamp);
+        }
+        else
+        {
+        require (stakechecking[msg.sender]!=true, "Alreday Stake");
+        }
+    }
+    function CheckRewards() public view returns (uint256)
+    {
+        uint256 a; uint256 b;
+        uint256 RewardPerMint;
+        // uint256 RewardAfterFiveSecond;
+        uint256 TimeDiff;
+        uint256 Reward;
+        uint256 PercentageReward;
+        uint256 maxReward;
+        uint256 RewardAfterFiveSecond;
+
+        a=StakeUser[msg.sender].amount/100;
+        PercentageReward=a*360;
+        RewardPerMint = PercentageReward/600;
+        RewardAfterFiveSecond = RewardPerMint * 60;
+
+           if(block.timestamp >= StakeUser[msg.sender].time + 10 minutes)
+           { 
+            maxReward =  PercentageReward;
+           }
+           else
+           {
+                TimeDiff= block.timestamp - StakeUser[msg.sender].time;
+                b= TimeDiff/60;
+                Reward = RewardAfterFiveSecond * b;
+                maxReward =  Reward;
+           }
+
+        return maxReward;
+    }
+    function WithDraw () public
+    {
+        // if(Rewardtransfer==true)
+        TotalRewards[msg.sender]=CheckRewards();
+
+        TransferredReward[msg.sender]= TotalRewards[msg.sender] - ReceivedReward[msg.sender];
+        Token.transfer(msg.sender, TransferredReward[msg.sender]);
+
+        if(ReceivedReward[msg.sender]!=TotalRewards[msg.sender])
+        { ReceivedReward[msg.sender] += TransferredReward[msg.sender]; }
+        else
+        { require (ReceivedReward[msg.sender]!=TotalRewards[msg.sender],"Reward Already transferred"); }
+    
+    }
+    function UnStakes() public  
+    {
+        if(stakechecking[msg.sender]==true)
+        {
+        // payable(msg.sender).transfer(StakeUser[msg.sender].amount);
+        Token.transfer(msg.sender, StakeUser[msg.sender].amount);
+        StakeUser[msg.sender].amount=0;
+        stakechecking[msg.sender]=false;
+        }
+        else
+        {
+           require (stakechecking[msg.sender]!=false, "Alreday UnStake"); 
+        }
+    }
+
+}

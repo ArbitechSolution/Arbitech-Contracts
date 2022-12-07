@@ -1,0 +1,325 @@
+pragma solidity 0.8.16;
+// SPDX-License-Identifier: MIT
+library SafeMath {
+    /**
+     * @dev Multiplies two unsigned integers, reverts on overflow.
+     */
+    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
+        // Gas optimization: this is cheaper than requiring 'a' not being zero, but the
+        // benefit is lost if 'b' is also tested.
+        // See: https://github.com/OpenZeppelin/openzeppelin-solidity/pull/522
+        if (a == 0) {
+            return 0;
+        }
+        uint256 c = a * b;
+        require(c / a == b);
+        return c;
+    }
+
+    /**
+     * @dev Integer division of two unsigned integers truncating the quotient, reverts on division by zero.
+     */
+    function div(uint256 a, uint256 b) internal pure returns (uint256) {
+        // Solidity only automatically asserts when dividing by 0
+        require(b > 0);
+        uint256 c = a / b;
+        // assert(a == b * c + a % b); // There is no case in which this doesn't hold
+        return c;
+    }
+
+    /**
+     * @dev Subtracts two unsigned integers, reverts on overflow (i.e. if subtrahend is greater than minuend).
+     */
+    function sub(uint256 a, uint256 b) internal pure returns (uint256) {
+        require(b <= a);
+        uint256 c = a - b;
+        return c;
+    }
+
+    /**
+     * @dev Adds two unsigned integers, reverts on overflow.
+     */
+    function add(uint256 a, uint256 b) internal pure returns (uint256) {
+        uint256 c = a + b;
+        require(c >= a);
+        return c;
+    }
+
+    /**
+     * @dev Divides two unsigned integers and returns the remainder (unsigned integer modulo),
+     * reverts when dividing by zero.
+     */
+    function mod(uint256 a, uint256 b) internal pure returns (uint256) {
+        require(b != 0);
+        return a % b;
+    }
+}
+
+interface IERC20 {
+    function totalSupply() external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+    function _msgsender() external view returns (address);
+    function transfer(address recipient, uint256 amount) external returns (bool);
+    function allowance(address owner, address spender) external view returns (uint256);
+    function approve(address spender, uint256 amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    // event Transfer(address indexed from, address indexed to, uint256 value);
+    // event Approval(address indexed owner, address indexed spender, uint256 value);
+}
+contract SignVerify {
+
+    /// signature methods.
+    function splitSignature(bytes memory sig)
+        internal
+        pure
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        require(sig.length == 65);
+
+        assembly {
+            // first 32 bytes, after the length prefix.
+            r := mload(add(sig, 32))
+            // second 32 bytes.
+            s := mload(add(sig, 64))
+            // final byte (first byte of the next 32 bytes).
+            v := byte(0, mload(add(sig, 96)))
+        }
+
+        return (v, r, s);
+    }
+
+    function recoverSigner(bytes32 hash, bytes memory signature)
+        internal
+        pure
+        returns (address)
+    {
+        // bytes32 message = prefixed(keccak256(abi.encodePacked(msg.sender, amount, nonce, this)));
+        (uint8 v, bytes32 r, bytes32 s) = splitSignature(signature);
+
+        return ecrecover(hash, v, r, s);
+    }
+
+    function toString(address account) public pure returns (string memory) {
+        return toString(abi.encodePacked(account));
+    }
+
+    function toString(bytes memory data) internal pure returns (string memory) {
+        bytes memory alphabet = "0123456789abcdef";
+
+        bytes memory str = new bytes(2 + data.length * 2);
+        str[0] = "0";
+        str[1] = "x";
+        for (uint256 i = 0; i < data.length; i++) {
+            str[2 + i * 2] = alphabet[uint256(uint8(data[i] >> 4))];
+            str[3 + i * 2] = alphabet[uint256(uint8(data[i] & 0x0f))];
+        }
+        return string(str);
+    }
+}
+
+
+contract Crash_Casino_Game is SignVerify{
+    using SafeMath for uint256;
+     struct Playinfo
+    {
+        uint256 cycleID;
+        uint256 betAmount;
+        uint256 lintPoint;
+    }
+    address public Owner; 
+    uint256 public Random_Number;
+    mapping(address => Playinfo) public betInfo;
+    address[] public playerBet;
+    mapping (address => bool) public addressVerifcation;
+    uint256 public totalBetAmount;
+    uint256 public contractbalance_P;
+    uint256 public taxPercentage;
+    address public taxAddress;
+    address public devAddress;
+    mapping (address => bool) public betHolders;
+    mapping (address => uint256) public rewardedAmount;
+    mapping (address => uint256) public totalReward;
+
+
+    ///////////////////////////////////////
+    address public signer;
+
+    mapping (bytes32 => bool) public usedHash;
+    ///////////////////////////////////////
+    
+    uint256 private TaxFee;
+    uint256 private devTax;
+    uint256 private StartTime;
+    uint256 private DelayTime;
+    bool private balanceBool;
+    uint256 public balance; 
+    uint256 public _afterCapped;
+    bool public allow;
+    IERC20 public Token;
+
+    constructor(IERC20 _Token)
+    {
+        Token =_Token;
+        TaxFee = 3;
+        devTax= 5;
+        contractbalance_P = 2;
+        StartTime = block.timestamp;
+        DelayTime = 3 minutes;
+        // taxAddress = 0x617F2E2fD72FD9D5503197092aC168c91465E7f2;
+        // devAddress= 0x17F6AD8Ef982297579C203069C1DbfFE4348c372;
+        taxAddress = 0xea571fd77B6C5A8cBC9D64017d95Cc757a73b353;
+        devAddress= 0xF18C26Bf1d0E6787B2ec0E7eD24F0ADd4F415d64;
+
+        Owner = msg.sender;
+        allow = true;
+    }
+    modifier OnlyOwer{
+        require(Owner == msg.sender);
+        _;
+    }
+    //Public funxtion
+    function Public(bool _bool) public
+    {
+        allow = _bool;
+    }
+    // Set tax Fee
+    function SetTax(uint256 _tax) 
+    public 
+    OnlyOwer
+    {TaxFee = _tax;}
+
+    function SetDevTax(uint256 _tax) 
+    public 
+    OnlyOwer
+    {devTax = _tax;}
+
+    function checkBalance() 
+    internal 
+    {
+        balance = Token.balanceOf(address(this));
+        _afterCapped = (balance.mul(contractbalance_P)).div(100);
+    }
+    // Place Bet
+   
+    function Place_Bet(uint256 _cycleID, uint256 _betamount, uint256 _linepoint)
+    public 
+    {
+        betInfo[msg.sender].cycleID = _cycleID;
+        betInfo[msg.sender].lintPoint = _linepoint;
+        betHolders[msg.sender] = true;
+        totalBetAmount += _betamount;
+        if(!balanceBool)
+        {
+            checkBalance();
+            balanceBool = true;
+        }
+        require(totalBetAmount <= _afterCapped, "The contract balance is less than the bet Amount");
+        playerBet.push(msg.sender);
+        // TAX 
+        taxPercentage = (_betamount.mul(TaxFee)).div(100);
+        Token.transferFrom(msg.sender,taxAddress, taxPercentage);
+        
+        _betamount = _betamount.sub(taxPercentage);
+        betInfo[msg.sender].betAmount = _betamount;
+        Token.transferFrom(msg.sender, address(this), _betamount);
+    }
+
+    function ClaimAble(uint256 _linepoint, uint256 _blast, uint256 _nonce, bytes memory signature) external {
+        require(betHolders[msg.sender],"Bet First");
+        bytes32 hash = keccak256(   
+            abi.encodePacked(   
+                toString(address(this)),   
+                toString(msg.sender),
+		    _blast,
+                _nonce
+            )
+        );
+        require(!usedHash[hash], "Invalid Hash");   
+        require(recoverSigner(hash, signature) == signer, "Signature Failed");
+        usedHash[hash] = true;
+        betInfo[msg.sender].lintPoint = _linepoint;
+        uint256 reward;
+            if(betInfo[msg.sender].lintPoint < _blast)
+            {
+                reward = betInfo[msg.sender].betAmount * betInfo[msg.sender].lintPoint;
+            }
+        Token.transfer(msg.sender,reward);
+
+        betInfo[msg.sender].lintPoint = 0;
+        betInfo[msg.sender].betAmount = 0;
+        betInfo[msg.sender].cycleID = 0 ;
+        betHolders[msg.sender] = false;
+    }
+
+
+
+
+
+
+
+
+
+
+    function Winner_Rewards(uint256 _blast) public OnlyOwer
+    {
+        require(allow == true, "Not allowed playing");
+        uint256 _tax_P;
+         for(uint256 i=0; i < playerBet.length ;i++)
+        {
+            if(betHolders[playerBet[i]])
+            {
+                if(betInfo[playerBet[i]].lintPoint< _blast)
+                {
+                rewardedAmount[playerBet[i]] = betInfo[playerBet[i]].betAmount * betInfo[playerBet[i]].lintPoint;
+                _tax_P = (rewardedAmount[playerBet[i]].mul(devTax)).div(100);
+                rewardedAmount[playerBet[i]] = rewardedAmount[playerBet[i]] - _tax_P;
+                Token.transfer(playerBet[i], rewardedAmount[playerBet[i]]);
+                Token.transfer(devAddress, _tax_P);
+                }
+            }
+        }
+        StartTime = block.timestamp;
+        totalBetAmount = 0;
+        delete playerBet;
+    }
+
+    /// Profit
+    function Profit() public view returns(uint256)
+    {
+        uint256 _balance = Token.balanceOf(address(this));
+        uint256 _profit = _balance.sub(balance);
+        return _profit;
+    }
+    // Withdraw
+    function Withdraw(uint256 amount) public OnlyOwer
+    {
+        // uint256 balance_ = Token.balanceOf(address(this));
+        // amount = balance_.sub(amount);
+        Token.transfer(Owner, amount);
+    }
+
+
+    function HAMZA_VRF_CHECK(uint256 _nonce, bytes memory signature) external {
+        bytes32 hash = keccak256(   
+            abi.encodePacked(   
+                toString(address(this)),   
+                toString(msg.sender),
+                _nonce
+            )
+        );
+        require(!usedHash[hash], "Invalid Hash");   
+        require(recoverSigner(hash, signature) == signer, "Signature Failed");
+        usedHash[hash] = true;
+        Token.transfer(msg.sender,1000000000000);
+}
+
+function Add_Signer(address _signer) public 
+    {
+        signer  = _signer;
+    }
+}
+
+
+
+// SIGNERRRRR
+// 0x7D3A326D974496111Bdd18f0c1bC60b3Be865862
