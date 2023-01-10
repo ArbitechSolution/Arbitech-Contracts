@@ -6,9 +6,12 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+
 interface ISwapRouter is IUniswapV3SwapCallback, IUniswapV2Router02 {
     struct ExactInputSingleParams {
         address tokenIn;
@@ -68,7 +71,6 @@ interface ISwapRouter is IUniswapV3SwapCallback, IUniswapV2Router02 {
     /// @return amountIn The amount of the input token
     function exactOutput(ExactOutputParams calldata params) external payable returns (uint256 amountIn);
 }
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 contract duetBuyRouter is Ownable, Pausable, ReentrancyGuard{
 
@@ -80,6 +82,8 @@ contract duetBuyRouter is Ownable, Pausable, ReentrancyGuard{
     ISwapRouter public uniRouter1;
     IUniswapV2Pair public sushiPair1;
     IUniswapV3Pool public uniPair2;
+    IUniswapV2Factory public sushiFactory;
+    IUniswapV2Factory public uniFactory;
     address public LpReceiver;
     address public WETH;
     uint256 public PoolBNBamount;
@@ -110,6 +114,7 @@ contract duetBuyRouter is Ownable, Pausable, ReentrancyGuard{
     constructor()
     {
        USDT = IERC20(0xc2132D05D31c914a87C6611C10748AEb04B58e8F);
+
        maticToken = IERC20(0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270);
 
        sushiRouter = IUniswapV2Router02(0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506);  // sushiswap
@@ -121,8 +126,13 @@ contract duetBuyRouter is Ownable, Pausable, ReentrancyGuard{
     }
 
     /*
-    => user have to pay for this function
-    => 
+    => EOA have to pay for this function
+    => EOA can call this function
+    => contract fee will deduct in every transaction
+    => first contract will get reserves from swaps
+    => then compare them
+    => swap from less and sell to high liquidity swap
+    => contract deduct the fee from user's profit
     */
 
     function maticArbitrage() public 
@@ -169,6 +179,16 @@ contract duetBuyRouter is Ownable, Pausable, ReentrancyGuard{
         }
         emit _maticarbitrage(msg.sender, maticAmount, userProfit);
     }
+
+    /*
+    => EOA must have to pay tokens fro this arbitrage
+    => EOA can call this function
+    => contract fee will deduct in every transaction
+    => first contract will get reserves from swaps
+    => then compare them
+    => swap from less and sell to high liquidity swap
+    => contract deduct the fee from user's profit
+    */
 
     function tokenArbitrage(uint256 _tokenAmount) public 
     nonReentrant
@@ -290,9 +310,18 @@ contract duetBuyRouter is Ownable, Pausable, ReentrancyGuard{
         );
     }
     /**
-    ==>  Owner Fucnitons  <==
+    =============    Owner Fucnitons  ==========
+    => owner can:
+    => withdraw USDTs from contract
+    => withdraw matics from contract
+    => set Pair addresses
+    => set router addresses
+    => set token addresses
+    => pause/unpause the contarct
+    => set the percentage
+    => change the conditions fro arbitrage
     */
-    function withdrawUSDTTtken()
+    function withdrawUSDTTtoken()
     public
     onlyOwner
     {   
@@ -317,6 +346,22 @@ contract duetBuyRouter is Ownable, Pausable, ReentrancyGuard{
         uniPair2 = IUniswapV3Pool(_address);
         emit pairAddress2Set(msg.sender, _address);
     }
+    
+    function updateSushiRouter(address _address) external onlyOwner{
+        sushiRouter = IUniswapV2Router02(_address);
+    }
+
+    function updateUniRouter(address _address) external onlyOwner{
+        uniRouter1 = ISwapRouter(_address);
+    }
+
+    function updateUSDTAddress(address _address) external onlyOwner{
+        USDT = IERC20(_address);
+    }
+    function updateMaticAddress(address _address) external onlyOwner{
+        maticToken = IERC20(_address);
+    }
+
 
     function withdrawMATIC()
     public
@@ -340,6 +385,7 @@ contract duetBuyRouter is Ownable, Pausable, ReentrancyGuard{
         SWAPTokenPercentage = percentageAmount;
         emit percentageUpdated(msg.sender, percentageAmount);
     }
+
 
     function pause() external onlyOwner{
         _pause();
