@@ -1,0 +1,92 @@
+then is the user stake again (or remain staked) the last cycle index is updated as well as the new staking timestamp
+8:29
+so in simple:
+staking time period is calculated using timestamp(end) - timestamp(start)
+8:30
+reward amount is calculated by 30 days cycle using an index of cycles
+
+the only complicated thing is:
+calculating the proportion of rewrds due per cycles.
+This can only be achived by calculating the total gem staked and making a proportion.
+if gen 1 worth 8 and each level worth 1 per level, you can create a stakeing score.
+each cycle will have a total staked score (reprsenting every staked gem in that cycle), so when the user claim, the calculation will sue the staking score to determine the proportion of the total cycle amount due, per cycle
+8:34
+gen 1= 8
+gen2= 7
+gen3=6
+gen4=5
+gen5=4
+gen6=3
+8:34
+gen7- 2
+gen8=1
+level = level
+8:35
+this way, the staking score of a gen2/lev4 would be 11
+8:35
+if total staked in that cyclke would be 110, the claim would be 10%
+
+normally, cycle will all follow each other and will have:
+index
+total staked score
+total balance of rewards
+remaining balance of rewards
+
+it is often prudent to add a ping function when uing delegated call. ping is used only to have the modifier update and can be called from the smart contract to force update
+in the unlikely event that no one use the sc when update is needed
+(had to do it in a previous sc when delegated call somtime needed to be pushed)
+
+
+that is the precise issue i did not figure out yet. The difference between the user cycle and the sc cycle
+9:47
+ideally, we'd want the staking to follow the user's cycle
+9:48
+but in this, it is hard to not follow the sc cycles as rewards will fluctuate as well as staker over those periods
+9:49
+the easy response would be, follow the sc cycle, if user stked for the entire sc cycle, he is added to the total stakedf and has claim over that cyle rewards.
+The hard response would be to figure out another way of bookeeping that would allow for a more flexlible user cycle driven staking
+9:50
+(by book keeping, i mean the delegated updating of staking mapppings to keep the book upto date with the cycles)
+9:51
+the other flexixble accounting way would be to do it by a day absolute cyclke
+9:51
+every day staked is a cycles
+9:51
+delegated book keeping is done daily
+9:51
+claims cycle are daily
+9:52
+day 0 is cycle 0
+9:52
+every 24h, the next tx will book keep the cycle recording how much reward accrued and the total stake score for that day
+9:52
+the user can only claim is a total of 30 days (cycles) have been succefully done
+9:53
+but that would follow the users cycle as any day you start, 30 days later you can claim
+9:53
+that would probly be the best approach
+9:56
+teh mapping for dayly cycle would have:
+cycle index
+total royalties accrued
+total staked score active
+cycle start timstamp
+cycle end timestamps (null if cycle still active or time if cycle is ended)
+the user would have a mapping also keeping track of:
+stake start timestamp
+when user claim, the now timestamp is used to easure th cyle of claim, staking score is usedf to detrmine share of the cycle pool.
+when user unstake all claim are resolved
+only one gem can be staked at any one time per wallet
+hope this helps
+
+yes gen2 lev 4 will get 11 score
+the totalStakedScore should be recorded in a mapping, each time a user stake, the total score is update by adding the user current staking score , when a user unstake, the score is reduced.
+The user does NOT receive gem as reward, they recieve a share of the LP fees pool (50% of the LP pool fees). If a user is the only one staking, it will receive the entire reward pool for that cycle (11/11=1 means that 100% of the pool is claimed by 1 user)
+then when lets say 5 user stake 55 score total, the user would only receive 20% with its 11 score. 
+
+
+the total staked score is recorded at each cycle, the user have thei own staking score that is used to determine their share of the current cycle reward pool
+ex: if reeward pool for cycle X is 10 Matic
+the total score is 100 and user A hads a score of 10 and user B a score of 20, user C has 30, user D has 40 for cycle X.
+user A gets 1 Matic , user B gets 2 Matic, user C gets 3 and user D gets 4 for the total of 10 Matic to distribute
+of course, for a user to be allowed to claim for cycle X, the user must have a timestamp of staking start that comprise the entire cycle X. This is the only way to know that the user has the rigth to the reward pool at that psecific cycle.
