@@ -93,8 +93,9 @@ contract GemStaking{
 
     uint256 sizeMultiplier = 1;
     uint256 public curCycle = 0;
-    uint256 maxCycleTime = 10 minutes;
-    uint256 public cycleSlots = 10;
+    uint256 maxCycleTime = 5 minutes;
+    uint256 userMaxTime = 7 minutes;
+    uint256 public cycleSlots = 5;
     // uint256 cycleTime = 5 minutes;
 
     uint256 slotTime = 1 minutes;
@@ -107,6 +108,7 @@ contract GemStaking{
         uint256 endTime;
         uint256 cycleStake;
         uint256 cyclePool;
+        uint256 cycleEndTime;
     }
 
     struct cycleInfo{
@@ -119,14 +121,16 @@ contract GemStaking{
     mapping(address => StakedInfo) public userInfo;
     mapping(uint256 => cycleInfo) public cycles;
     mapping(address => uint256) public claimedReward;
-    mapping(uint256 => uint256 ) public poolReward;
+    mapping(uint256 => uint256 ) public poolRewards;
 
 
     constructor() {
         gemNft = IERC721(0xc153f0DAaA7f371528650338f415d631b189c8cB);
         Token = IERC20(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4);
-        owner = msg.sender;
+        owner = msg.sender; 
 
+        // poolRewards[curCycle] = _cycleReward;  // 100000000000000000000
+        poolRewards[curCycle] = 100000000000000000000;
         cycles[curCycle].cycleStartTime = block.timestamp;
         cycles[curCycle].cycleEndTime = (block.timestamp).add(maxCycleTime);
     }
@@ -139,19 +143,17 @@ contract GemStaking{
     function StakeGem(uint256 generation, uint256 size) public{
         StakedInfo storage user = userInfo[msg.sender];
         require(user.startTime == 0, "User Already Staked!!");
+        // updateCycle();
         // (uint256 generation, uint256 size) = gemNft.getTokenIdInfo(tokenId);
         uint256 userScore = getUserStakedScore(generation,size);
         // gemNft.transferFrom(msg.sender,address(this),tokenId);
         user.stakedScore = userScore;
         user.startTime = block.timestamp;
-        user.endTime = (block.timestamp).add(maxCycleTime);
+        user.endTime = (block.timestamp).add(userMaxTime);
         user.cycleStake = curCycle;
-        user.cyclePool = poolReward[curCycle];
+        user.cyclePool = poolRewards[curCycle];
 
         // if(cycles[curCycle].cycleEndTime > 0)
-        updateCycle();
-        // cycles[curCycle].cycleStartTime = block.timestamp;
-        // cycles[curCycle].cycleEndTime = (block.timestamp).add(maxCycleTime);
         cycles[curCycle].totalCycleScore += userScore;
 
         Stakers = Stakers.add(1);
@@ -171,7 +173,7 @@ contract GemStaking{
         return userScore;
     }
 
-    function getTime(address _user) public view returns(uint256){
+    function getTime1(address _user) public view returns(uint256){
         StakedInfo storage user = userInfo[_user];
     
         uint256 time =0;
@@ -179,56 +181,12 @@ contract GemStaking{
         return time;
     }
 
-    function cycleReward (address _user,uint256  _time) public view returns(uint256){
-        StakedInfo storage user = userInfo[_user];
-        uint256 cycleDiff = curCycle.sub(user.cycleStake);
-        uint256 userEarn;
-        uint256 cycleTime;
-        uint256 reward;
-        uint256 cycleInc;
-        for(uint256 i; i< cycleDiff; i++){
-            cycleInc++;
-            uint256 cycleScore = cycles[(user.cycleStake) + cycleInc].totalCycleScore;
-            cycleTime = (_time.mul(60)).sub(cycles[(user.cycleStake) + 1].cycleStartTime);
-
-            userEarn = ((poolReward[(user.cycleStake)+cycleInc]).div(cycleScore)).mul((user.stakedScore));
-            reward += (userEarn).div(cycleSlots).mul(cycleTime);
-        }
-        return reward;
-    }
-
-    function stakeTime(address _user, uint256 userCycle) public view returns(uint256){
-        StakedInfo storage user = userInfo[_user];
-        uint256 timeDiff = (cycles[userCycle].cycleEndTime).sub(user.startTime);
-        return timeDiff;
-    }
-
-    function userReward(address _user) public view returns(uint256){
-        StakedInfo storage user = userInfo[_user];
-        uint256 time = getTime(_user);
-        uint256 reward;
-        uint256 userCycle = user.cycleStake;
-        uint256 userStakeTime = stakeTime(_user, userCycle);
-        uint256 totalScore = cycles[userCycle].totalCycleScore;
-        uint256 userEarn = ((user.cyclePool).div(totalScore)).mul((user.stakedScore));
-        uint256 nextReward = cycleReward(_user,time);
-
-        if(time >= cycleSlots){
-            time = cycleSlots;
-        }
-
-        reward = ((userEarn).div(cycleSlots)).mul(time);
-        reward += (reward.div(userStakeTime)).mul(100);
-        reward = reward.add(nextReward);
-        return reward.sub(claimedReward[_user]);
-    }
-
     function claimReward() public {
-        require(block.timestamp >= cycles[(curCycle + 1)-1].cycleEndTime, "claim time not completed!!");
+        StakedInfo storage user = userInfo[msg.sender];
+        require(block.timestamp >= cycles[user.cycleStake].cycleEndTime, "cycle time not completed!!");
         require(block.timestamp >= userInfo[msg.sender].endTime, "claim time not completed!!");
-        uint256 userReward_ = userReward(msg.sender);
-
-        claimedReward[msg.sender] += userReward_;
+        uint256 userReward_ = cycleRewards(msg.sender);
+        claimedReward[msg.sender] = claimedReward[msg.sender].add(userReward_);
         // Token.transfer(msg.sender, userReward_);
     }
 
@@ -242,14 +200,17 @@ contract GemStaking{
         Stakers = Stakers.sub(1);
     }
 
-    function updateCycle() public {
+    function updateCycle(uint256 _cycleReward) public {
         if(block.timestamp > cycles[curCycle].cycleEndTime){
+
             curCycle++;
             cycles[curCycle].cycleNo = curCycle;
             cycles[curCycle].totalCycleScore = cycles[curCycle-1].totalCycleScore;
 
             cycles[curCycle].cycleStartTime = block.timestamp;
             cycles[curCycle].cycleEndTime = block.timestamp.add(maxCycleTime);
+
+            poolRewards[curCycle] = _cycleReward;
         }
     }
 
@@ -257,48 +218,65 @@ contract GemStaking{
         return gemNft.getTokenIdInfo(tokenID);
     }
 
-    
-    function setPoolReward(uint256 _poolReward) public onlyOwner{
-        updateCycle();
-        poolReward[curCycle] = _poolReward;
+    function cycleRewards (address _user) public view returns(uint256){
+        StakedInfo storage user = userInfo[_user];
+        uint256 userCycleReward;
+        uint256 reward; 
+        uint256 cycleDiff = curCycle.sub(user.cycleStake);
+        userCycleReward = curCycleReward(_user);
+        if(cycleDiff >= 1){
+          reward  = calcCyclesReward(_user, cycleDiff);
+        }
+        return (reward.add(userCycleReward)).sub(claimedReward[msg.sender]);
     }
 
+    function curCycleReward(address _user) public view returns(uint256){
+        StakedInfo storage user = userInfo[_user];
+        uint256 userEarn;
+        uint256 userCycleReward;
+        uint256 time_ = ((block.timestamp).sub(user.startTime)).div(slotTime);
+        uint256 cycleTime = ((cycles[(user.cycleStake)].cycleEndTime).sub(user.startTime)).div(slotTime);
+
+        if(time_ >= cycleTime){
+            time_ = cycleTime;
+            userEarn = ((user.cyclePool).mul(user.stakedScore)).div(cycles[curCycle].totalCycleScore);
+            // userEarn = ((user.cyclePool).div(cycles[curCycle].totalCycleScore)).mul(user.stakedScore);
+            userCycleReward = (userEarn).div(cycleSlots).mul(time_);
+        }
+        else { 
+            userEarn = ((user.cyclePool).mul(user.stakedScore)).div(cycles[curCycle].totalCycleScore);
+            // userEarn = ((user.cyclePool).div(cycles[curCycle].totalCycleScore)).mul(user.stakedScore);
+            userCycleReward = (userEarn).div(cycleSlots).mul(time_);
+        }
+        return userCycleReward;
+    }
+
+    function calcCyclesReward(address _user, uint256 cycleDiff) public view returns(uint256){
+        StakedInfo storage user = userInfo[_user];
+        uint256 reward;
+        uint256 userEarn;
+        uint256 _time;
+        uint256 cycleEndTime_;
+        uint256 totalRew;
+        for(uint256 i =1; i<= cycleDiff; i++){
+            cycleEndTime_ = cycles[(user.cycleStake) + i].cycleEndTime;
+            if((block.timestamp) <= cycleEndTime_) {
+                _time = ((block.timestamp).sub(cycles[(user.cycleStake) + i].cycleStartTime)).div(slotTime);
+                userEarn = ((poolRewards[(user.cycleStake)+i]).mul(user.stakedScore)).div(cycles[(user.cycleStake) + i].totalCycleScore);
+                // userEarn = ((poolRewards[(user.cycleStake)+i]).div(cycles[(user.cycleStake) + i].totalCycleScore)).mul((user.stakedScore));
+                // reward += (userEarn).div(cycleSlots).mul(curTime);
+                reward = (userEarn).div(cycleSlots).mul(_time);
+            }
+            else{
+                _time = ((cycles[(user.cycleStake) + i].cycleEndTime).sub((cycles[(user.cycleStake) + i].cycleStartTime))).div(slotTime);
+                userEarn = ((poolRewards[(user.cycleStake)+i]).mul(user.stakedScore)).div(cycles[(user.cycleStake) + i].totalCycleScore);
+                // userEarn = ((poolRewards[(user.cycleStake)+i]).div(cycles[(user.cycleStake) + i].totalCycleScore)).mul((user.stakedScore));
+                reward = ((userEarn).div(cycleSlots)).mul(_time);
+            }
+            totalRew = totalRew.add(reward);
+        }
+        return totalRew;
+    }
+ 
 }
 
-
-/*
-
-    function stakeTimeReward(address _user) public view returns(uint256){
-        StakedInfo storage user = userInfo[_user];
-        uint256 userCycle = user.cycleStake;
-
-        uint256 _cycleTime = ((cycles[userCycle].cycleEndTime).sub(user.startTime)).div(60);
-        uint256 cycleRew;
-        uint256 totalTimeReward;
-
-        uint256 totalScore = cycles[userCycle].totalCycleScore;
-        uint256 userEarn = (user.stakedScore).div(user.stakedScore);
-        
-        // uint256 userEarn = ((poolReward).div(totalScore)).mul((user.stakedScore));
-
-        // cycleRew = (user.stakedScore).div(maxCycleTime);
-        // totalTimeReward = (cycleRew).mul(_cycleTime).mul(60);
-
-        if(user.lastClaim == 0){
-            uint256 time__ = curCycle.sub(userCycle);
-            // uint256 nextRew;
-            for(uint256 i =1; i<= time__; i++){
-                totalTimeReward += (cycles[userCycle+i].totalCycleScore).div(user.stakedScore);
-                // nextRew += (user.stakedScore).div(maxCycleTime);
-            }
-
-        }
-
-        return totalTimeReward;
-    }
-    =>  
-        // uint256 _reward = stakeTimeReward(_user);
-        // uint256 userReward_ = ((user.stakedScore).mul(100)).div(poolReward);
-        // reward += ((userReward_).mul(time)).div(maxCycleTime);
-        // uint256 totalScore = cycles[curCycle].totalCycleScore;
-*/
