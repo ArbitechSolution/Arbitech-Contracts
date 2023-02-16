@@ -1,0 +1,160 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.13;
+interface StakeInter{
+    function transfer(address receiver , uint256 trantoken) external returns(bool);
+    function transferfrom(address owner, address recetoken,uint256 value) external returns(bool);
+    function BalanceAfterStaking(address _address, uint256 StakeAmount) external returns (uint256);
+    function BalanceAfterUnStaking(address _address, uint256 StakeAmount) external returns(bool);
+}
+contract ERC_Staking{
+
+    event StakeEvent(uint256 amount, uint256 Time);
+    mapping( address=>stake) StakeUser;
+    mapping( address=>uint256) TotalReward;
+
+    StakeInter public StakeInterface;
+    constructor(StakeInter _StakeInterface)
+    {
+    StakeInterface=_StakeInterface;
+    }
+
+    struct stake
+    { 
+        uint256 amount;
+        uint256 time;
+    }
+    function Stakes(uint256 StakeAmount) public payable
+    {
+    StakeUser[msg.sender] = stake(StakeAmount, block.timestamp);
+    StakeInterface.BalanceAfterStaking(msg.sender,StakeAmount);
+
+    // StakeInterface.transferfrom(msg.sender, address(this), StakeAmount);
+    //   StakeInterface.transfer(address(this), StakeUser[msg.sender].amount);
+      emit StakeEvent(StakeAmount, block.timestamp);
+    }
+
+    function CheckRewards() public returns (uint256)
+    {
+        uint256 a; uint256 b;
+        uint256 RewardPerSecond;
+        uint256 RewardAfterFiveSecond;
+        uint256 TimeDiff;
+        uint256 Reward;
+        uint256 maxReward;
+
+        a=StakeUser[msg.sender].amount/100;
+        maxReward=a*360;
+        RewardPerSecond = maxReward/20;
+        RewardAfterFiveSecond = RewardPerSecond * 5;
+
+           if(block.timestamp >= StakeUser[msg.sender].time + 20 seconds)
+           { 
+            TotalReward[msg.sender] =  maxReward;
+           }
+           else
+           {
+                TimeDiff= block.timestamp-StakeUser[msg.sender].time;
+                b= TimeDiff/5;
+                Reward = RewardAfterFiveSecond * b;
+                TotalReward[msg.sender] =  Reward;
+           }
+
+        return TotalReward[msg.sender];
+    }
+    function WithDraw () public
+    {
+        StakeInterface.transfer(msg.sender, TotalReward[msg.sender]);
+    }
+    function UnStakes() public  
+    {
+        // payable(msg.sender).transfer(StakeUser[msg.sender].amount);
+        StakeInterface.BalanceAfterUnStaking(msg.sender,StakeUser[msg.sender].amount);
+        StakeUser[msg.sender].amount=0;
+    }
+
+}
+-----------------------------
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.13;
+contract Tokenstake
+{
+    mapping(address => uint256) public balances;
+    mapping(address => mapping (address => uint256)) allowance;
+
+    event Transfer(address indexed from,address indexed to, uint256 tak);
+    event approval(address indexed from,address indexed to, uint256 take);
+
+    string public TokenName ;
+    string public TokenSymbol ;
+    uint256 public TotalSupply;
+
+    address admin;
+
+    constructor()
+    {
+    TokenName = "ArbiTechSolutions";
+    TokenSymbol ="RBT";
+    TotalSupply = 5000000000000 *10**18;
+    balances[msg.sender]=TotalSupply;
+    admin=msg.sender;
+    }
+    
+    modifier checkadmin()
+    {
+        require (msg.sender==admin);
+        _;
+    }
+    function transfer(address receiver , uint256 trantoken) external returns(bool)
+    {
+    require(trantoken<= balances[msg.sender]);
+    balances[msg.sender] -= trantoken;
+    balances[receiver] += trantoken;
+    emit Transfer(msg.sender,receiver,trantoken);
+    return true;
+    }
+    function balanceof(address Totalbal) public view returns (uint256)
+    {
+        return balances[Totalbal];
+    }
+    function mint (uint256 tokens) public checkadmin
+    {
+       TotalSupply += tokens;
+       balances[msg.sender] += tokens;
+    }
+     function burn (uint256 tokens) public checkadmin
+    {
+       require(tokens<=balances[msg.sender]);
+       TotalSupply -= tokens;
+       balances[msg.sender] -= tokens;
+    }
+    function aprove(address spender, uint256 value) public returns(bool){
+        allowance[msg.sender][spender]= value;
+        emit approval(msg.sender, spender, value);
+        return true;
+    }
+    function transferfrom(address owner, address recetoken,uint256 value) public returns(bool){
+        uint256 allow1= allowance[owner][msg.sender];
+        require(balances[owner]>=value && allow1 >= value);
+        balances[owner]-=value;
+        balances[recetoken]+=value;
+        allowance[owner][msg.sender]-=value;
+        emit Transfer(owner,recetoken,value);
+         return true;
+    }
+    function remaining(address owner, address spender)public view returns (uint256)
+    {
+        return allowance[owner][spender];
+    }
+
+    function BalanceAfterStaking(address _address, uint256 StakeAmount) public returns(bool)
+    {
+        balances[_address] = balances[_address]- StakeAmount;
+        return true;
+    }
+     function BalanceAfterUnStaking(address _address, uint256 StakeAmount) external returns(bool)
+    {
+        balances[_address] = balances[_address] + StakeAmount;
+        return true;
+    }
+
+}

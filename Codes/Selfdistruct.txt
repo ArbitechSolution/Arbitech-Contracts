@@ -1,0 +1,13 @@
+pragma solidity ^0.5.0;
+
+contract first{
+
+    function pay() public payable
+    {
+    }
+    function removed() public 
+    {
+        selfdestruct(0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2);
+    }
+    
+}

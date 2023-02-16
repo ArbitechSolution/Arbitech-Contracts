@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.13;
+contract ERC20_ABC
+{
+    mapping(address => uint256) _Balances;
+    mapping(address => mapping (address => uint256)) _Allow;
+    mapping(address => uint) public _UserDelayTime;
+    mapping(address => bool) public _FirstTime;
+    mapping(address => uint) public _DelayTime;
+
+    event Transfer(address indexed from,address indexed to, uint256 tak);
+    event Approval(address indexed from,address indexed to, uint256 take);
+
+    string public TokenName;
+    string public TokenSymbol;
+    uint256 public TotalSupply;
+    address Admin;
+
+    constructor()
+    {
+    TokenName = "ArbiTechSolutions";
+    TokenSymbol ="RBT";
+    TotalSupply = 5000000000000 *10**18;
+    _Balances[msg.sender] =TotalSupply;
+    Admin = msg.sender;
+    }
+
+    modifier checkadmin()
+    {
+        require (msg.sender==Admin);
+        _;
+    }
+
+    function transfer(address Receiver , uint256 TranferToken) public returns(bool)
+    {
+       if(_FirstTime[msg.sender] == false)
+        {
+            _DelayTime[msg.sender] =60 seconds;
+            _FirstTime[msg.sender] =true;
+        }
+        if(_DelayTime[msg.sender] != 0)
+        {
+            require(block.timestamp > _UserDelayTime[msg.sender] + _DelayTime[msg.sender], "Time not reached"); 
+            _UserDelayTime[Receiver] = block.timestamp;
+            _UserDelayTime[msg.sender] = block.timestamp;
+            _DelayTime[msg.sender] = _DelayTime[msg.sender]/2;
+        }
+         require(_Balances[msg.sender] >= TranferToken, "Low Token");
+        _Balances[msg.sender] -= TranferToken;
+        _Balances[Receiver] += TranferToken;
+        emit Transfer(msg.sender,Receiver,TranferToken);
+        return true;
+    }
+
+    function BalanceOf(address Totalbalance) public view returns (uint256)
+    {
+        return _Balances[Totalbalance];
+    }
+
+    function Mint (uint256 TokensAdd) public checkadmin
+    {
+       TotalSupply += TokensAdd;
+       _Balances[msg.sender] += TokensAdd;
+    }
+
+     
+    function Burn (uint256 TokensDel) public checkadmin
+    {
+       require(TokensDel <= _Balances[msg.sender]);
+       TotalSupply -= TokensDel;
+       _Balances[msg.sender] -= TokensDel;
+    }
+
+    function Aproved(address spender, uint256 value) public returns(bool)
+    {
+        _Allow[msg.sender][spender] = value;
+        emit Approval(msg.sender, spender, value);
+        return true;
+    }
+
+    function transferfrom(address owner, address receivetoken,uint256 value) public returns(bool)
+    {
+        require(_Balances[owner] >= value && _Allow[owner][msg.sender] >= value);
+        _Balances[owner]-=value;
+        _Balances[receivetoken] += value;
+        _Allow[owner][msg.sender] -= value;
+        emit Transfer(owner,receivetoken,value);
+        return true;
+    }
+
+    function RemaingAllowToken(address owner, address spender)public view returns (uint256)
+    {
+        return _Allow[owner][spender];
+    }
+}

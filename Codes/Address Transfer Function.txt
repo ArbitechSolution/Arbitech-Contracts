@@ -1,0 +1,10 @@
+pragma solidity ^0.5.0;
+
+contract first{
+      
+      address payable address1=0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2;
+      function sendfunds( ) public payable
+      {
+        address1.transfer(2 ether);
+      }
+}

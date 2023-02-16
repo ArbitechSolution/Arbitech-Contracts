@@ -1,0 +1,12 @@
+git add .
+git status
+git commit -m "TYPE HERE"
+git push origin hamza
+
+
+
+
+
+//////////////////////////
+
+git branch

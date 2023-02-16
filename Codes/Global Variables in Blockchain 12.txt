@@ -1,0 +1,19 @@
+pragma solidity ^0.5.0;
+
+contract first
+{
+    event logaddress(address);
+    event loguint(uint);
+    event logbytes(bytes);
+    function Addinfo() public payable
+    {
+        emit logaddress(block.coinbase);
+        emit loguint(block.gaslimit);
+        emit loguint(block.number);
+        emit loguint(block.timestamp);
+        emit logbytes(msg.data);
+        emit loguint(gasleft());
+        emit logaddress(msg.sender);
+        emit loguint(msg.value);
+    }
+}

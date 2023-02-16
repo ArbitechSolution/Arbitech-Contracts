@@ -1,0 +1,35 @@
+ pragma solidity ^0.5.0;
+
+contract first{
+        enum Gander{
+            male,
+            female
+        }
+        struct Student{
+           string name;
+           uint age;
+           bool isfeepaid;
+           Gander gand;
+       }
+        Student s= Student("Hamza", 25, true, Gander.male);
+
+        modifier checking(){
+           if(s.age>20){
+               _;
+           }
+       }
+       function showstudentinfo() public view checking returns (string memory, Gander){
+           Student memory s1= Student("Hamza", 25, true, Gander.male);
+           return (s1.name,s1.gand);
+       }
+       event Ageinfo(uint);
+       modifier checking1(uint age1){
+           if(age1==20){
+               _;
+           }
+       }
+        function showstudentinfo1(uint age1) public checking1(age1){
+        emit Ageinfo(age1);
+       }
+    
+}

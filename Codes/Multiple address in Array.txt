@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.13;
+interface IERCDROP
+{
+    function transfer(address receiver , uint256 trantoken) external returns(bool);
+    function transferfrom(address owner, address recetoken,uint256 value) external returns(bool);
+}
+contract AirDrop
+{
+    IERCDROP public TOKENDROP;
+    // uint256 TotalToken;
+    uint16 count=0;
+    address admin;
+    constructor(IERCDROP _TOKENDROP)
+    {
+    TOKENDROP=_TOKENDROP;
+    // TotalToken= 50000000000000000000;
+    admin=msg.sender;
+    }
+
+    address[] Arryofaddress= new address[](200);
+    
+    modifier admin_verification()
+    {
+    require(msg.sender==admin);
+    _;
+    }
+    function Transfer_Token(address _addresses, uint256 TotalToken) public admin_verification
+    {
+    Arryofaddress[count]=_addresses;
+    TOKENDROP.transfer(Arryofaddress[count],TotalToken);
+    count++;
+    }
+}

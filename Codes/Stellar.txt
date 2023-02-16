@@ -1,0 +1,13 @@
+erc-721
+erc-4907
+erc-1155
+erc-998
+erc-137
+erc-725
+erc-2981
+ERC-777
+
+EIP-4519
+EIP-5114
+EIP-1271
+EIP-2098

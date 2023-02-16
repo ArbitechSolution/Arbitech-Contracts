@@ -1,0 +1,20 @@
+pragma solidity ^0.5.0;
+
+contract first{
+        enum Gander{
+            male,
+            female
+        }
+        struct Student{
+           string name;
+           uint age;
+           bool isfeepaid;
+           Gander gand;
+       }
+        Student s= Student("Donna", 25, true, Gander.female);
+       function showstudentinfo() public view returns (string memory, Gander){
+           Student memory s1= Student("Hamza", 25, true, Gander.male);
+           return (s1.name,s1.gand);
+       }
+    
+}

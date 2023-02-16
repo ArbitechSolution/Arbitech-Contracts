@@ -1,0 +1,137 @@
+pragma solidity 0.8.16;
+// SPDX-License-Identifier: MIT
+interface IERC20 {
+    function totalSupply() external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+    function _msgsender() external view returns (address);
+    function transfer(address recipient, uint256 amount) external returns (bool);
+    function allowance(address owner, address spender) external view returns (uint256);
+    function approve(address spender, uint256 amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    // event Transfer(address indexed from, address indexed to, uint256 value);
+    // event Approval(address indexed owner, address indexed spender, uint256 value);
+}
+contract Crash_Casino_Game {
+    
+    uint256 public Random_Number;
+    
+    address[] private playerBet;
+    mapping (address => mapping (uint256 => uint256)) public betAmount;
+    mapping (address => uint256) public countBetAmount;
+    mapping (address => mapping (uint256 => uint256)) public linePoint;
+    mapping (address => bool) public checkaddress;
+    uint256 public totalBetAmount;
+    uint256 public contractbalance;
+    uint256 private contractbalance_P;
+    
+    uint256 public tax_P;
+    address public texAddress;
+    mapping (address => mapping (uint256 => uint256)) public betAmountAfterTax;
+    mapping (address => mapping (uint256 => uint256)) private rewardAmount;
+    address public devAddress;
+
+    mapping (address => bool) public CheckBet;
+
+    address[] public PlayerWinner;
+    
+    uint256 public TaxFee;
+    uint256 public _TaxFee;
+    uint256 public TotalTaxFee;
+    uint256 public TaxFeeper;
+    uint256 private StartTime; 
+    uint256 private DelayTime;
+    bool private AlreadyGenerateRandom;
+    uint256 private MaxRendomNumber;
+    uint256 public GamePlayTime;
+    address public Owner; 
+    bool private _PGame;
+    IERC20 public Token;
+    constructor(IERC20 _Token)
+    {
+        Token =_Token;
+        TaxFee = 3;
+        _TaxFee= 5;
+        contractbalance_P = 2;
+        StartTime = block.timestamp;
+        DelayTime = 180 seconds;
+        MaxRendomNumber = 10;
+        texAddress = 0xea571fd77B6C5A8cBC9D64017d95Cc757a73b353;
+        devAddress= 0xF18C26Bf1d0E6787B2ec0E7eD24F0ADd4F415d64;
+        Owner = msg.sender;
+    }
+    modifier OnlyOwer{
+        require(Owner == msg.sender);
+        _;
+    }
+    function SetTaxFee(uint256 _tax) public OnlyOwer
+    {
+        TaxFee = _tax;
+    }
+    //0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2
+    //0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db
+    function Place_Bet(uint256 _betamount, uint256 _linepoint) public 
+    {
+        // require(block.timestamp <= StartTime + DelayTime + Random_Number, "Time is completed");
+
+        contractbalance = Token.balanceOf(address(this));
+        contractbalance = TaxCalculation(contractbalance, contractbalance_P);
+        // require(totalBetAmount <= contractbalance, "Sorry: Contract balance is less Than Bet Amount");
+
+        betAmount[msg.sender][countBetAmount[msg.sender]] = _betamount;
+        linePoint[msg.sender][countBetAmount[msg.sender]] = _linepoint;
+        totalBetAmount += _betamount;
+
+        if(!checkaddress[msg.sender])
+        { playerBet.push(msg.sender); checkaddress[msg.sender] = true; }
+
+        tax_P = TaxCalculation(_betamount, TaxFee);
+        Token.transferFrom(msg.sender,texAddress, tax_P);
+        
+        _betamount = _betamount - tax_P;
+        betAmountAfterTax[msg.sender][countBetAmount[msg.sender]] = _betamount;
+        Token.transferFrom(msg.sender, address(this), _betamount);
+        countBetAmount[msg.sender] += 1;
+        // CheckBet[msg.sender] = true;
+    }
+
+    function TaxCalculation(uint256 _amount, uint256 _Taxpercentage) internal pure returns(uint256)
+    {
+        uint256 calculation;
+        calculation = _amount * _Taxpercentage;
+        calculation = calculation/100;
+        return calculation;
+    }
+
+
+    function PlayGame() public OnlyOwer
+    {
+        require(!_PGame, "Already");
+        // require(block.timestamp > StartTime + DelayTime, "Please wait: Time is not complete to play the game");
+        Random_Number = uint256(keccak256(abi.encodePacked(block.timestamp,block.difficulty,  
+        msg.sender))) % MaxRendomNumber;
+        GamePlayTime = block.timestamp;
+        // _PGame = true;
+    }
+
+    function Winner_Rewards() public OnlyOwer
+    {
+        uint256 _tax_P;
+        // require(block.timestamp > GamePlayTime + Random_Number, "");
+        for(uint256 i=0; i < playerBet.length ;i++)
+            {
+                for(uint256 j=0; j< countBetAmount[playerBet[i]]; j++)
+                {
+                    if(linePoint[playerBet[i]][j] <= Random_Number)
+                    {
+                    rewardAmount[playerBet[i]][j] = betAmountAfterTax[playerBet[i]][j] * linePoint[playerBet[i]][j];
+                    _tax_P = TaxCalculation (rewardAmount[playerBet[i]][j], _TaxFee);
+                    rewardAmount[playerBet[i]][j] -= _tax_P;
+                    Token.transfer(playerBet[i], rewardAmount[playerBet[i]][j]);
+                    Token.transfer(devAddress, _tax_P);
+        //             Token.approve(Owner, RewardAmunt[playerBet[i]]);
+        // //             // Token.transferFrom(address(this), playerBet[i], RewardAmunt[playerBet[i]]);
+                    }
+                }
+            }
+    }
+}
