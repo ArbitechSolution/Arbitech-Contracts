@@ -146,7 +146,7 @@ abstract contract Pausable is Context {
 contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
 
     using SafeMath for uint256; 
-    IERC20 public USDToken;
+    IERC20 public USDTToken;
     IERC20 public USDACEToken;
     IERC20 public ETAToken;
 
@@ -155,6 +155,7 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
 
     struct UserInfo {
         address referrer;
+        uint256 totalDeposit;
         uint256 directsReferralNum;
         uint256 referralTeamNum;
     }
@@ -173,19 +174,17 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
     uint256 public referDepth = 10;
     uint256 public fixedPrice = 1e18;
     uint256 public tokenPrice = 1e18;
-
     uint256 private percentage70 = 70;
     uint256 private percentage30 = 30;
-
-    uint256 public minDeposit = 10e18;
-    uint256 public maxDeposit = 10000e18; // Change
-    uint256 public cycleSupply = 10000e18; // change
-    uint256 public roundSupply = 1000000e18; //change
-     uint256 public tokenPriceAfterTwoRounds;
+    uint256 public minDeposit = 1e18;
+    uint256 public maxDeposit = 100e18; // Change
+    uint256 public cycleSupply = 100e18; // change
+    uint256 public roundSupply = 10000e18; //change
+    uint256 public tokenPriceAfterTwoRounds;
     uint256 private constant baseDivider = 100;
     uint256 public tokenPriceIncreament = 10000000000000000;
     
-    uint256[6] private Selling_Percents = [0,0,160,180,200,400];
+    uint256[6] private Selling_Percents = [0,0,160,180,200,800];
     uint256[6] private Balance_Percents = [100,200,240,300,400,0];
     uint256[6] private Round_Percents = [100,200,400,480,600,800];
 
@@ -194,7 +193,6 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
     mapping(address => UserInfo) public userInfo;
     mapping(uint256 => uint256) public seller_Count;
     mapping(uint256 => uint256) public buyer_Count;
-    mapping(address => uint256) public SellTotalToken;
     mapping(uint256 => uint256) public totalTokenRound; 
     mapping(address => uint256 ) public buyertimeCount;
     mapping(address => uint256 ) public TotalUSDSpent;
@@ -203,17 +201,18 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
     mapping(address => mapping(uint256 =>  uint256)) public buyerRound;
     mapping(uint256 => mapping(uint256 =>  address)) public buyer_address;
     mapping(uint256 => mapping(uint256 => uint256)) public totalTokencycle;
+    mapping(address =>  mapping(uint256 => uint256)) public SellTotalToken;
     mapping(address => mapping(uint256 =>  uint256)) public buyerTotalToken;
     mapping(uint256 => mapping(uint256 => uint256)) public totalTokencyclePrice;
     mapping(address => mapping(uint256 => mapping(uint256 =>  uint256))) public buyer_Token;
-    mapping(address => mapping(uint256 => mapping(uint256 =>  uint256))) public buyerToken_Price;
+    mapping(address => mapping(uint256 => mapping(uint256 =>  uint256))) public buyerToken_Price;  
     mapping(address => mapping(uint256 => mapping(uint256 =>   mapping(uint256 =>  uint256)))) public buyerSellTotalToken;
 
     event Register(address user, address referral);
 
     constructor()
     {
-        USDToken = IERC20(0xCc59Ea62F420daf1F692C960A5E4b65f0b80C9bE);
+        USDTToken = IERC20(0xCc59Ea62F420daf1F692C960A5E4b65f0b80C9bE);
         USDACEToken = IERC20(0xEA4cF54175F38BE85FF1109c29A8d3A5e3922e73);
         ETAToken = IERC20(0xc0c01E11f85E4B022A7ADF46DD91D3eD512e2Dc3);
         defaultRefer = 0xC353bC8E1C4d3C6F4870D83262946E8C32e126b3;
@@ -223,11 +222,10 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
     }
     function register(address _referral) 
     public{
-        require(_referral == defaultRefer, "invalid refer");
+        require(userInfo[_referral].totalDeposit > 0 || _referral == defaultRefer, "invalid refer");
         UserInfo storage user = userInfo[msg.sender];
         require(user.referrer == address(0), "referrer bonded");
         user.referrer = _referral;
-        userInfo[user.referrer].directsReferralNum = userInfo[user.referrer].directsReferralNum.add(1);
         _updateTeamNum(msg.sender);
         totalUser = totalUser.add(1);
         emit Register(msg.sender, _referral);
@@ -253,11 +251,11 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
     whenNotPaused
     {
         require(msg.sender == tx.origin," External Error ");
+        require(IERC20(tokenAddress) == USDTToken || IERC20(tokenAddress) == USDACEToken,"Invalid token address");
         UserInfo storage user = userInfo[msg.sender];
         require(user.referrer != address(0), "register first");
         require(token >= minDeposit, "less than min");
         require(token <= maxDeposit, "less than max");
-        require(token.mod(10) == 0, "Token should be multiples of 10");
         if(roundbool == false)
         {
             uint256 tokentransfer;
@@ -277,7 +275,8 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
                     Rem_Amount1 = tokenAmount; 
                 }
                 
-                require(Rem_Amount1 == totalprice, "Error");
+                require(Rem_Amount1 == totalprice, "Invalid amount");
+                userInfo[msg.sender].totalDeposit = token;
                 TotalUSDSpent[msg.sender] = TotalUSDSpent[msg.sender].add(Rem_Amount1);
                 round = rounndDetails[0];
                 totalTokenRound[round] += rounndDetails[1];
@@ -316,15 +315,16 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
                     buyerRound[msg.sender][buyertimeCount[msg.sender]] = round;
                     buyertimeCount[msg.sender] = buyertimeCount[msg.sender].add(1);
                 }
-                if(IERC20(tokenAddress) == USDToken)
+                if(IERC20(tokenAddress) == USDTToken)
                 {
                     (uint256 Percentage1,uint256 Percentage2) = percentage(Rem_Amount1);
-                    USDToken.transferFrom(msg.sender, owner(), Percentage1);
-                    USDToken.transferFrom(msg.sender, offchain, Percentage2);
+                    USDTToken.transferFrom(msg.sender, owner(), Percentage1);
+                    USDTToken.transferFrom(msg.sender, offchain, Percentage2);
                     ETAToken.transferFrom(owner(),address(this),tokentransfer);
                 }
                 else if(IERC20(tokenAddress) == USDACEToken)
                 {
+                    USDACEToken.transferFrom(msg.sender, address(this), Rem_Amount1);
                     ETAToken.transferFrom(owner(),address(this),tokentransfer);
                 }
             } 
@@ -348,7 +348,7 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
                     {
                     buyerSellTotalToken[SellerAddress][round][PreviousRound][seller_Count[PreviousRound]] = 
                     buyerSellTotalToken[SellerAddress][round][PreviousRound][seller_Count[PreviousRound]].add(remainingbuyerToken);
-                    SellTotalToken[SellerAddress] += remainingbuyerToken; 
+                    SellTotalToken[SellerAddress][round] += remainingbuyerToken; 
                     TotalUSDTreceived[SellerAddress] += (remainingbuyerToken.mul(sellerTokenPrice)).div(1e18);
                     uint256 totalamount = remainingbuyerToken.mul(sellerTokenPrice);
                     trasnferAmount(tokenAddress,SellerAddress,totalamount,remainingbuyerToken);
@@ -364,7 +364,7 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
                         buyerSellTotalToken[SellerAddress][round][PreviousRound][seller_Count[PreviousRound]] = 
                         buyerSellTotalToken[SellerAddress][round][PreviousRound][seller_Count[PreviousRound]].add(TokenBuy_User[0]);
                         TotalUSDTreceived[SellerAddress] += (TokenBuy_User[0].mul(sellerTokenPrice)).div(1e18);
-                        SellTotalToken[SellerAddress] += TokenBuy_User[0];
+                        SellTotalToken[SellerAddress][round] += TokenBuy_User[0];
                         uint256 totalamount = TokenBuy_User[0].mul(sellerTokenPrice);
                         trasnferAmount(tokenAddress,SellerAddress,totalamount,TokenBuy_User[0]);
                         buyer_Token[msg.sender][round][buyer_Count[round]] = TokenBuy_User[0];
@@ -410,7 +410,8 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
             uint256[] memory BuyerandSalesDetails = new uint256[](3);
             BuyerandSalesDetails =  getPriceAfterTwoRunds(token,PreviousRound,endRound,totaluser,SellerAddress,sellerTokenPrice,
             TokenBuy_User[0],seller_Count[PreviousRound]);
-            require(tokenAmount == BuyerandSalesDetails[0], "Error");
+            require(tokenAmount == BuyerandSalesDetails[0], "Enter the valid amount");
+            userInfo[msg.sender].totalDeposit = token;
             TotalUSDSpent[msg.sender] = TotalUSDSpent[msg.sender].add(tokenAmount);
             remainingbuyerToken = token;
             while(remainingbuyerToken > 0)
@@ -422,7 +423,7 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
                 TotalUSDTreceived[SellerAddress] += (remainingbuyerToken.mul(sellerTokenPrice)).div(1e18);
                 uint256 totalamount = remainingbuyerToken.mul(sellerTokenPrice);
                 trasnferAmount(tokenAddress,SellerAddress,totalamount,remainingbuyerToken);
-                SellTotalToken[SellerAddress] += remainingbuyerToken;
+                SellTotalToken[SellerAddress][round] += remainingbuyerToken;
                 buyer_Token[msg.sender][round][buyer_Count[round]] = remainingbuyerToken;
                 buyerToken_Price[msg.sender][round][buyer_Count[round]] = sellerTokenPrice;
                 buyer_address[round][buyer_Count[round]] = msg.sender;
@@ -437,7 +438,7 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
                     TotalUSDTreceived[SellerAddress] += (TokenBuy_User[0].mul(sellerTokenPrice)).div(1e18);
                     uint256 totalamount = TokenBuy_User[0].mul(sellerTokenPrice);
                     trasnferAmount(tokenAddress,SellerAddress,totalamount,TokenBuy_User[0]);
-                    SellTotalToken[SellerAddress] += TokenBuy_User[0];
+                    SellTotalToken[SellerAddress][round] += TokenBuy_User[0];
                     buyer_Token[msg.sender][round][buyer_Count[round]] = TokenBuy_User[0];
                     buyerToken_Price[msg.sender][round][buyer_Count[round]] = sellerTokenPrice;
                     buyer_address[round][buyer_Count[round]] = msg.sender;
@@ -445,13 +446,18 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
                     buyer_Count[round] = buyer_Count[round].add(1);
                     seller_Count[PreviousRound] = seller_Count[PreviousRound].add(1);
                     if(seller_Count[PreviousRound] >= buyer_Count[PreviousRound]){
+                        seller_Count[PreviousRound] = 0;
                         PreviousRound = PreviousRound.add(1);
                         if(PreviousRound > endRound){
                             PreviousRound = 0;
-                            seller_Count[PreviousRound] = 0;
                             buyerRound[msg.sender][buyertimeCount[msg.sender]] = round;
                             buyertimeCount[msg.sender] = buyertimeCount[msg.sender].add(1);
                             round = round.add(1);
+                            if(round > 4)
+                            {
+                                endRound = round.sub(2);
+                                PreviousRound = round.sub(5);
+                            }
                         }
                     }
                     SellerAddress = buyer_address[PreviousRound][seller_Count[PreviousRound]];
@@ -485,13 +491,14 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
     private{
         _totalamount = _totalamount.div(1e18);
         (uint256 Percentage1,uint256 Percentage2) = percentage(_totalamount);
-        if(IERC20(_tokenAddress) == USDToken)
+        if(IERC20(_tokenAddress) == USDTToken)
         {
-            USDToken.transferFrom(msg.sender, _SellerAddress, Percentage1);
-            USDToken.transferFrom(msg.sender, offchain, Percentage2);
+            USDTToken.transferFrom(msg.sender, _SellerAddress, Percentage1);
+            USDTToken.transferFrom(msg.sender, offchain, Percentage2);
             // ETAToken.transferFrom(owner(),address(this),_tokentransfer);
         }else if(IERC20(_tokenAddress) == USDACEToken)
         {
+            USDACEToken.transferFrom(msg.sender, address(this), _totalamount);
             // USDACEToken.transferFrom(msg.sender, _SellerAddress, Percentage1);
             // USDACEToken.transferFrom(msg.sender, offchain, Percentage2);
             // ETAToken.transferFrom(owner(),address(this),_tokentransfer);
@@ -528,16 +535,48 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
                 {
                     uint256 _rounds = buyerRound[_user][i];
                     uint256 percentages = currentRound.sub(_rounds);
-                    uint256 total = (_tokens.mul(Round_Percents[percentages])).div(baseDivider);
+                    uint256 total;
+                    if(percentages <= 5)
+                    {
+                        total = (_tokens.mul(Round_Percents[percentages])).div(baseDivider);
+                    }
+                    else{
+                        total = 0;
+                    }
                     totalTokens = totalTokens.add(total);
+
                 }
             }
-            totalTokens = totalTokens.sub(SellTotalToken[_user]);
+            totalTokens = totalTokens.sub(SellTotalToken[_user][round]);
             return totalTokens;
         }
         else{
             return totalTokens;
         }
+    }
+    function checkPrice(uint256 _tokens) public view returns (uint256 price)
+    { 
+        require(_tokens >= minDeposit, "less than min");
+        require(_tokens <= maxDeposit, "less than max");
+        uint256 _Price;
+        if(round < 2)
+        {
+            (uint256 _Price1,uint256 _Price2) = getPrice(_tokens,round,cycle[round],tokenPrice);
+            _Price = _Price1.add(_Price2);
+        }
+        else{
+
+            uint256 _sellerCount = seller_Count[PreviousRound];
+            address seller_address = buyer_address[PreviousRound][_sellerCount];
+            uint256 seller_TokenPrice = buyerToken_Price[seller_address][PreviousRound][_sellerCount];
+            uint256 Rem_token = checkRemainingToken(seller_address, PreviousRound);
+            uint256[] memory BuyerandSales_Details = new uint256[](3);
+            BuyerandSales_Details= getPriceAfterTwoRunds(_tokens, PreviousRound, endRound, buyer_Count[PreviousRound],
+            seller_address,seller_TokenPrice,Rem_token,_sellerCount);
+            _Price = BuyerandSales_Details[0];
+        }
+        return _Price;
+
     }
     function getPriceAfterTwoRunds(uint256 _Tokens,uint256 _PreviousRound,uint256 _endRound, uint256 _totaluser, 
     address _SellerAddress,uint256 _sellerTokenPrice,uint256 _TokenRemaining,uint256 _seller_Count) 
@@ -564,6 +603,11 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
                         {
                             priceDetails[1] = 0;
                             _currentRound = _currentRound.add(1);
+                            if(_currentRound > 4)
+                            {
+                                _endRound = _currentRound.sub(2);
+                                priceDetails[1] = _currentRound.sub(5);
+                            }
                         }
                     _seller_Count = 0;
                     }
@@ -692,12 +736,13 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
 
         for(uint256 i = 0 ; i <= round ; i++)
         {
-            for(uint256 j = 0 ; j <= seller_Count[round] ; j++)
+            for(uint256 j = 0 ; j <= buyer_Count[i] ; j++)
             {
                 if(buyer_address[i][j] == _user)
                 {
                     buyer_Token[_user][i][j] = 0;
                     buyerToken_Price[_user][i][j] = 0;
+                    SellTotalToken[_user][i] = 0;
                 }
             }
         }
@@ -707,19 +752,18 @@ contract EstrellaTera is Ownable, Pausable, ReentrancyGuard{
         }
         TotalUSDSpent[_user]  = 0;
         TotalUSDTreceived[_user] = 0;
-        SellTotalToken[_user] = 0;
         
     }
 ///////////////////////USDT TOken/////////////////////////////////////////
-    function withdrawUSDToken(uint256 _count)
+    function withdrawUSDTToken(uint256 _count)
     public
     onlyOwner
-    {   USDToken.transfer(owner(),_count);   }
+    {   USDTToken.transfer(owner(),_count);   }
 
-    function emergancyWithdrawUSDToken()
+    function emergancyWithdrawUSDTToken()
     public
     onlyOwner
-    {   USDToken.transfer(owner(),USDToken.balanceOf(address(this)));  }
+    {   USDTToken.transfer(owner(),USDTToken.balanceOf(address(this)));  }
 /////////////////////USDACE Token/////////////////////////////////////////
 function withdrawUSDACEToken(uint256 _count)
     public
