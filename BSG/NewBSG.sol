@@ -116,31 +116,35 @@ contract Dexaglobus is Ownable{
 
     uint256 private constant feePercents = 1000; 
     uint256 private constant minDeposit = 50e18;
-    uint256 private constant maxDeposit = 2000e18;
-    uint256 private constant freezeIncomePercents = 2400;
-    uint256 private constant freeze2IncomePercents = 2400;
+    uint256 private constant maxDeposit = 2500e18;
+    uint256 private constant freezeIncomePercents = 3000;
+    uint256 public freezeIncomePercents2 = 7000;
+    uint256 public maxEarn = 3;
 
     uint256 private constant baseDivider = 10000;
 
-    uint256 private constant timeStep = 1 days;
-    uint256 private dayPerCycle = 10 days;
+    // uint256 private constant timeStep = 1 days;
+    // uint256 private dayPerCycle = 10 days;
+    
+    uint256 private constant timeStep = 1 minutes;
+    uint256 private dayPerCycle = 5 minutes;
 
     uint256 private constant dayReward2Percents = 133333333333333333334;
     uint256 private constant dayRewardPercents = 100000000000000000000;
 
 
-    uint256 private constant maxAddFreeze = 27 days;
+    uint256 private constant maxAddFreeze = 1 days;
     uint256 private constant referDepth = 20;
 
 
     uint256 private constant directPercents = 500;
-    uint256[4] private level4Percents = [100, 200, 200, 200];
-    uint256[15] private level5Percents = [100, 100, 100, 100, 100, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50];
 
     uint256 private constant diamondPoolPercents = 100;
     uint256 private constant topPoolPercents = 50;
     uint256 private constant doubleDiamondPoolPercents = 100;
 
+    uint256 public daysCycle = 5 minutes;
+    uint256 public totalCycles = 50;
 
     uint256[5] private balDown = [10e10, 30e10, 100e10, 500e10, 1000e10];
     uint256[5] private balDownRate = [1000, 1500, 2000, 5000, 6000]; 
@@ -193,16 +197,12 @@ contract Dexaglobus is Ownable{
     mapping(address => UserInfo) public userInfo;
     mapping(uint256 => mapping(address => uint256)) public userLayer1DayDeposit; // day=>user=>amount
     mapping(address => mapping(uint256 => address[])) public teamUsers;
+    mapping(address => mapping(uint256 => uint256)) public staticReward1;
 
     struct RewardInfo {
         uint256 capitals;
         uint256 statics;
         uint256 directs;
-        uint256 level4Freezed;
-        uint256 level4Released;
-        uint256 level5Left;
-        uint256 level5Freezed;
-        uint256 level5Released;
         uint256 diamond;
         uint256 doubleDiamond;
         uint256 top;
@@ -221,12 +221,13 @@ contract Dexaglobus is Ownable{
     event TransferBySplit(address user, address receiver, uint256 amount);
     event Withdraw(address user, uint256 withdrawable);
 
-    constructor(address _BUSDAddr, address _defaultRefer, address _feeReceiver) public {
-        BUSD = IERC20(_BUSDAddr);
-        founderFee = _feeReceiver;
+
+    constructor() public {
+        // BUSD = IERC20(_BUSDAddr);
+        founderFee = 0xf6f2Bd97D33EAB1cFa78028d4e518823B9158430;
         startTime = block.timestamp;
         lastDistribute = block.timestamp;
-        defaultRefer = _defaultRefer;
+        defaultRefer = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
     }
 
     function register(address _referral) external {
@@ -249,7 +250,8 @@ contract Dexaglobus is Ownable{
     function depositBySplit(uint256 _amount) external {
         require(_amount >= minDeposit && _amount.mod(minDeposit) == 0, "amount err");
         require(userInfo[msg.sender].totalDeposit == 0, "actived");
-        uint256 splitLeft = getCurSplit(msg.sender);
+        // uint256 splitLeft = getCurSplit(msg.sender);
+        uint256 splitLeft = 1;
         require(splitLeft >= _amount, "insufficient split");
         rewardInfo[msg.sender].splitDebt = rewardInfo[msg.sender].splitDebt.add(_amount);
         _deposit(msg.sender, _amount);
@@ -258,7 +260,8 @@ contract Dexaglobus is Ownable{
 
     function transferBySplit(address _receiver, uint256 _amount) external {
         require(_amount >= minDeposit && _amount.mod(minDeposit) == 0, "amount err");
-        uint256 splitLeft = getCurSplit(msg.sender);
+        uint256 splitLeft = 1;
+        // uint256 splitLeft = getCurSplit(msg.sender);
         require(splitLeft >= _amount, "insufficient income");
         rewardInfo[msg.sender].splitDebt = rewardInfo[msg.sender].splitDebt.add(_amount);
         rewardInfo[_receiver].split = rewardInfo[_receiver].split.add(_amount);
@@ -278,50 +281,38 @@ contract Dexaglobus is Ownable{
         }
     }
 
-    function withdraw() external {
-        distributePoolRewards();
-        (uint256 staticReward, uint256 staticSplit) = _calCurStaticRewards(msg.sender);
-        uint256 splitAmt = staticSplit;
-        uint256 withdrawable = staticReward;
+    // function withdraw() external {
+    //     distributePoolRewards();
+    //     (uint256 staticReward, uint256 staticSplit) = _calCurStaticRewards(msg.sender);
+    //     uint256 splitAmt = staticSplit;
+    //     uint256 withdrawable = staticReward;
 
-        (uint256 dynamicReward, uint256 dynamicSplit) = _calCurDynamicRewards(msg.sender);
-        withdrawable = withdrawable.add(dynamicReward);
-        splitAmt = splitAmt.add(dynamicSplit);
+    //     (uint256 dynamicReward, uint256 dynamicSplit) = _calCurDynamicRewards(msg.sender);
+    //     withdrawable = withdrawable.add(dynamicReward);
+    //     splitAmt = splitAmt.add(dynamicSplit);
 
-        RewardInfo storage userRewards = rewardInfo[msg.sender];
-        userRewards.split = userRewards.split.add(splitAmt);
+    //     RewardInfo storage userRewards = rewardInfo[msg.sender];
+    //     userRewards.split = userRewards.split.add(splitAmt);
 
-        userRewards.statics = 0;
+    //     userRewards.statics = 0;
 
-        userRewards.directs = 0;
-        userRewards.level4Released = 0;
-        userRewards.level5Released = 0;
+    //     userRewards.directs = 0;
         
-        userRewards.diamond = 0;
-        userRewards.top = 0;
+    //     userRewards.diamond = 0;
+    //     userRewards.top = 0;
         
-        withdrawable = withdrawable.add(userRewards.capitals);
-        userRewards.capitals = 0;
+    //     // withdrawable = withdrawable;
+    //     // withdrawable = withdrawable.add(userRewards.capitals);
+    //     // userRewards.capitals = 0;
         
-        BUSD.transfer(msg.sender, withdrawable);
-        userRewards.totalWithdrawls += withdrawable;
+    //     BUSD.transfer(msg.sender, withdrawable);
+    //     userRewards.totalWithdrawls += withdrawable;
 
-        uint256 bal = BUSD.balanceOf(address(this));
-        _setFreezeReward(bal);
+    //     uint256 bal = BUSD.balanceOf(address(this));
+    //     _setFreezeReward(bal);
 
-        emit Withdraw(msg.sender, withdrawable);
-    }
-
-    function getCurROI(address _user) public view returns(uint256){
-        // RewardInfo storage userRewards = rewardInfo[_user];
-        (uint256 staticReward ,) = _calCurStaticRewards(_user);
-        return staticReward;
-    }
-
-    function currentIncome(address _user) public view returns(uint256){
-        (uint256 allreward, ) =_calCurDynamicRewards(_user);
-        return allreward ;      
-    }
+    //     emit Withdraw(msg.sender, withdrawable);
+    // }
 
     function getCurDay() public view returns(uint256) {
         return (block.timestamp.sub(startTime)).div(timeStep);
@@ -370,27 +361,51 @@ contract Dexaglobus is Ownable{
         return(maxTeam, otherTeam, totalTeam);
     }
 
-    function getCurSplit(address _user) public view returns(uint256){
-        (, uint256 staticSplit) = _calCurStaticRewards(_user);
-        (, uint256 dynamicSplit) = _calCurDynamicRewards(_user);
-        return rewardInfo[_user].split.add(staticSplit).add(dynamicSplit).sub(rewardInfo[_user].splitDebt);
+    // function getCurSplit(address _user) public view returns(uint256){
+    //     (, uint256 staticSplit) = _calCurStaticRewards(_user);
+    //     (, uint256 dynamicSplit) = _calCurDynamicRewards(_user);
+    //     return rewardInfo[_user].split.add(staticSplit).add(dynamicSplit).sub(rewardInfo[_user].splitDebt);
+    // }
+
+    function setValues(uint256 amt, uint256 amt1, uint256 amt2) external 
+    {
+        RewardInfo storage userRewards = rewardInfo[msg.sender];
+        UserInfo storage user = userInfo[msg.sender];
+        user.totalDeposit = amt2;
+        userRewards.statics = amt;
+        userRewards.totalWithdrawls = amt1;
     }
 
-    function _calCurStaticRewards(address _user) private view returns(uint256, uint256) {
+    function totalRewards(address _user) external view returns(uint256, uint256){
         RewardInfo storage userRewards = rewardInfo[_user];
-        uint256 totalRewards = userRewards.statics;
-        uint256 splitAmt = totalRewards.mul(freezeIncomePercents).div(baseDivider);
-        uint256 withdrawable = totalRewards.sub(splitAmt);
-        return(withdrawable, splitAmt);
-    }
+        UserInfo storage user = userInfo[_user];
 
-    function _calCurDynamicRewards(address _user) private view returns(uint256, uint256) {
-        RewardInfo storage userRewards = rewardInfo[_user];
-        uint256 totalRewards = userRewards.directs.add(userRewards.level4Released).add(userRewards.level5Released);
-        totalRewards = totalRewards.add(userRewards.diamond.add(userRewards.doubleDiamond).add(userRewards.top));
-        uint256 splitAmt = totalRewards.mul(freezeIncomePercents).div(baseDivider);
-        uint256 withdrawable = totalRewards.sub(splitAmt);
-        return(withdrawable, splitAmt);
+        uint256 totalRewards_ = userRewards.directs;
+        totalRewards_ = totalRewards_.add(userRewards.diamond.add(userRewards.doubleDiamond).add(userRewards.top).add(userRewards.statics).add(userRewards.totalWithdrawls));
+        uint256 amount3X = (user.totalDeposit).mul(maxEarn);
+        uint256 remainingReward;
+        uint256 remaings;
+        uint256 withdrawable;
+        uint256 splitAmt;
+
+        if(totalRewards_ > amount3X){
+            uint256 withdrawable1;
+            uint256 withdrawable2;
+            remainingReward = totalRewards_.sub(amount3X);
+            uint256 splitAmt1 = (remainingReward.mul(freezeIncomePercents2)).div(baseDivider);
+            withdrawable1 = remainingReward.sub(splitAmt1);
+            remaings = amount3X.sub(userRewards.totalWithdrawls) ;
+            uint256 splitAmt2 = remaings.mul(freezeIncomePercents).div(baseDivider);
+            withdrawable2 = remaings.sub(splitAmt2);
+            withdrawable = withdrawable1.add(withdrawable2);
+            splitAmt = (splitAmt1).add(splitAmt2);
+        }
+        else {
+            splitAmt = totalRewards_.mul(freezeIncomePercents).div(baseDivider);
+            withdrawable = totalRewards_.sub(splitAmt);
+        }
+
+        return (withdrawable, splitAmt);
     }
 
     // function _updateTeamNum(address _user) private {
@@ -539,11 +554,11 @@ contract Dexaglobus is Ownable{
 
         _updateLevel(msg.sender);
 
-        uint256 addFreeze = (orderInfos[_user].length.div(2)).mul(timeStep);
-        if(addFreeze > maxAddFreeze){
-            addFreeze = maxAddFreeze;
-        }
-        uint256 unfreezeTime = block.timestamp.add(dayPerCycle).add(addFreeze);
+        // uint256 addFreeze = (orderInfos[_user].length.mul(daysCycle));
+        // if(addFreeze > maxAddFreeze){
+        //     addFreeze = maxAddFreeze;
+        // }
+        uint256 unfreezeTime = block.timestamp.add(dayPerCycle);
         orderInfos[_user].push(OrderInfo(
             _amount, 
             block.timestamp, 
@@ -559,8 +574,6 @@ contract Dexaglobus is Ownable{
 
         _updateReward(msg.sender, _amount);
 
-        _releaseUpRewards(msg.sender, _amount);
-
         if(getBoosterTeamDeposit(user.referrer) && getTimeDiffer(user.referrer) <= boosterDay ){
             if(!_isAvailable)
             {boosterIncomeUSers.push(user.referrer);}
@@ -573,6 +586,22 @@ contract Dexaglobus is Ownable{
         }
     }
 
+    function getROI(address _user) public view returns(uint256){
+        uint256 days_ = getCurDay();
+        uint256 sum;
+        uint256 a;
+        uint256 b;
+        for(uint256 i = 0; i < orderInfos[_user].length; i++){
+            for(uint256 j; j<9; j++){
+                a = daysCycle.mul(daysCycle.mul(j));
+                b = b.add(a);
+                if(b < days_){
+                    sum = sum.add(staticReward1[msg.sender][j]);
+                }
+            }
+        }
+        return sum;
+    }
 
     function _unfreezeFundAndUpdateReward(address _user, uint256 _amount) private {
         UserInfo storage user = userInfo[_user];
@@ -599,10 +628,12 @@ contract Dexaglobus is Ownable{
                 if(_isAvailable == true)
                 {
                  staticReward = (order.amount.mul(dayReward2Percents).mul(dayPerCycle).div(timeStep).div(baseDivider)).div(1e18);
+                 staticReward1[msg.sender][i] = staticReward;
                 }
                 else
                 {
                  staticReward = (order.amount.mul(dayRewardPercents).mul(dayPerCycle).div(timeStep).div(baseDivider)).div(1e18);
+                 staticReward1[msg.sender][i] = staticReward;
                 }
                
                 if(isFreezeReward) {
@@ -622,20 +653,6 @@ contract Dexaglobus is Ownable{
                 break;
             }
         }
-
-        if(!isUnfreezeCapital){ 
-            RewardInfo storage userReward = rewardInfo[_user];
-            if(userReward.level5Freezed > 0){
-                uint256 release = _amount;
-                if(_amount >= userReward.level5Freezed){
-                    release = userReward.level5Freezed;
-                }
-                userReward.level5Freezed = userReward.level5Freezed.sub(release);
-                userReward.level5Released = userReward.level5Released.add(release);
-                user.totalRevenue = user.totalRevenue.add(release);
-            }
-        }
-        dayPerCycle = getROITime();
     }
 
 
@@ -718,8 +735,6 @@ contract Dexaglobus is Ownable{
     function _distributeDeposit(uint256 _amount) private {
         uint256 fee = _amount.mul(feePercents).div(baseDivider);
         BUSD.transfer(founderFee, fee);
-        // BUSD.transfer(feeReceivers[0], fee.div(2));
-        // BUSD.transfer(feeReceivers[1], fee.div(2));
         uint256 diamond_ = _amount.mul(diamondPoolPercents).div(baseDivider);
         diamond = diamond.add(diamond_);
         uint256 doubleDiamond_ = _amount.mul(doubleDiamondPoolPercents).div(baseDivider);
@@ -784,67 +799,6 @@ contract Dexaglobus is Ownable{
         }
     }
 
-    function _releaseUpRewards(address _user, uint256 _amount) private {
-        UserInfo storage user = userInfo[_user];
-        address upline = user.referrer;
-        for(uint256 i = 0; i < referDepth; i++){
-            if(upline != address(0)){
-                uint256 newAmount = _amount;
-                if(upline != defaultRefer){
-                    uint256 maxFreezing = getMaxFreezing(upline);
-                    if(maxFreezing < _amount){
-                        newAmount = maxFreezing;
-                    }
-                }
-
-                RewardInfo storage upRewards = rewardInfo[upline];
-                if(i > 0 && i < 5 && userInfo[upline].level > 3){
-                    if(upRewards.level4Freezed > 0){
-                        uint256 level4Reward = newAmount.mul(level4Percents[i - 1]).div(baseDivider);
-                        if(level4Reward > upRewards.level4Freezed){
-                            level4Reward = upRewards.level4Freezed;
-                        }
-                        upRewards.level4Freezed = upRewards.level4Freezed.sub(level4Reward); 
-                        upRewards.level4Released = upRewards.level4Released.add(level4Reward);
-                        userInfo[upline].totalRevenue = userInfo[upline].totalRevenue.add(level4Reward);
-                    }
-                }
-
-                if(i >= 5 && userInfo[upline].level > 4){
-                    if(upRewards.level5Left > 0){
-                        uint256 level5Reward = newAmount.mul(level5Percents[i - 5]).div(baseDivider);
-                        if(level5Reward > upRewards.level5Left){
-                            level5Reward = upRewards.level5Left;
-                        }
-                        upRewards.level5Left = upRewards.level5Left.sub(level5Reward); 
-                        upRewards.level5Freezed = upRewards.level5Freezed.add(level5Reward);
-                    }
-                }
-                upline = userInfo[upline].referrer;
-            }else{
-                break;
-            }
-        }
-    }
-    uint256 public daysCycle = 5 days;
-    uint256 public totalCycles = 50;
-
-    function getROITime() public view returns(uint256){
-        uint256 curTime;
-        uint256 timeDiff_;
-        uint256 updatedTime_;
-        // for (uint256 i; i< 100; i++){
-        curTime = getCurDay();
-        if(curTime >= 10 && curTime <= totalCycles){
-            curTime  = curTime.sub(dayPerCycle);
-            updatedTime_ = dayPerCycle.add(daysCycle);
-            timeDiff_ = dayPerCycle.add(daysCycle);
-            timeDiff_ = curTime.sub(timeDiff_);
-            // updatedTime_ = timeDiff_
-        }
-        return updatedTime_;
-        // }
-    }
 
     function _balActived(uint256 _bal) private {
         for(uint256 i = balDown.length; i > 0; i--){
